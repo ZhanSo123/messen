@@ -9,5 +9,7 @@ export function getEnv(name, fallback) {
 export const config = {
     port: Number(process.env.PORT ?? "4001"),
     corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
-    jwtSecret: getEnv("JWT_SECRET", "dev_secret_change_me")
+    jwtSecret: getEnv("JWT_SECRET", "dev_secret_change_me"),
+    inviteRequired: (process.env.INVITE_REQUIRED ?? "false").toLowerCase() === "true",
+    adminUserId: process.env.ADMIN_USER_ID ?? ""
 };

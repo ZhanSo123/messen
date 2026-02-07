@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import { clearCachedMe, clearToken, getMe, loadCachedMe, loadToken, saveCachedMe } from "../../lib/auth";
 import { isOnboarded } from "../../lib/onboarding";
 import { loadSettings, saveSettings, type UserSettings } from "../../lib/settings";
+import { trackMetric } from "../../lib/metrics";
 
 type InviteItem = { code: string; createdAt: number };
 
@@ -182,7 +183,14 @@ export default function SettingsPage() {
 
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <button
-          onClick={() => setSettings((s) => (s ? { ...s, silentMode: !s.silentMode } : s))}
+          onClick={() =>
+            setSettings((s) => {
+              if (!s) return s;
+              const next = { ...s, silentMode: !s.silentMode };
+              void trackMetric({ apiBase, token, name: next.silentMode ? "silent_enabled" : "silent_disabled" });
+              return next;
+            })
+          }
           style={{
             padding: "8px 12px",
             border: "1px solid #ddd",

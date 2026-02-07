@@ -8,6 +8,7 @@ import { ReactionStore } from "../lib/reactionStore";
 import { loadSettings, saveSettings, toggleChatInFocus, type UserSettings } from "../lib/settings";
 import { pushRecentChat } from "../lib/recentChats";
 import { clearCachedMe, clearToken } from "../lib/auth";
+import { trackMetric } from "../lib/metrics";
 
 type UiMsg = {
   key: string; // tempId or msgId
@@ -296,7 +297,13 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <button
-          onClick={() => setSettings((s) => ({ ...s, silentMode: !s.silentMode }))}
+          onClick={() =>
+            setSettings((s) => {
+              const next = { ...s, silentMode: !s.silentMode };
+              void trackMetric({ apiBase: realtimeUrl, token, name: next.silentMode ? "silent_enabled" : "silent_disabled" });
+              return next;
+            })
+          }
           style={{
             padding: "8px 12px",
             border: "1px solid #ddd",

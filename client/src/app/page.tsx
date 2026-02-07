@@ -8,6 +8,7 @@ import { loadRecentChats, saveRecentChats } from "../lib/recentChats";
 import { PostFeed } from "../components/PostFeed";
 import { clearCachedMe, clearToken, getMe, loadCachedMe, loadToken, saveCachedMe } from "../lib/auth";
 import { isOnboarded } from "../lib/onboarding";
+import { trackMetric } from "../lib/metrics";
 
 export default function HomePage() {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
@@ -126,7 +127,14 @@ export default function HomePage() {
 
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <button
-          onClick={() => setSettings((s) => (s ? { ...s, silentMode: !s.silentMode } : s))}
+          onClick={() =>
+            setSettings((s) => {
+              if (!s) return s;
+              const next = { ...s, silentMode: !s.silentMode };
+              void trackMetric({ apiBase, token, name: next.silentMode ? "silent_enabled" : "silent_disabled" });
+              return next;
+            })
+          }
           style={{ padding: "8px 12px", border: "1px solid #ddd", background: settings.silentMode ? "#111" : "#fff", color: settings.silentMode ? "#fff" : "#111" }}
         >
           Silent: {settings.silentMode ? "On" : "Off"}

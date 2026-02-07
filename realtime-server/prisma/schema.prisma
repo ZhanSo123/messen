@@ -23,6 +23,8 @@ model User {
 
   createdInvites InviteCode[] @relation("InvitesCreated")
   usedInvites    InviteCode[] @relation("InvitesUsed")
+
+  metrics EventMetric[]
 }
 
 model Chat {
@@ -124,4 +126,17 @@ model InviteCode {
 
   @@index([createdByUserId, usedAt])
   @@index([code])
+}
+
+model EventMetric {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }

@@ -32,6 +32,13 @@ const LoginSchema = z.object({
 
 type AuthErrorCode = "invalid_payload" | "invalid_credentials" | "username_taken";
 type InviteErrorCode = "invalid_invite" | "invite_used";
+type MetricEventName =
+  | "post_created_public"
+  | "post_created_private"
+  | "silent_enabled"
+  | "silent_disabled"
+  | "invite_created"
+  | "invite_used";
 
 function json(res: ServerResponse, status: number, body: any, extraHeaders?: Record<string, string>) {
   res.statusCode = status;
@@ -109,10 +116,11 @@ export function createHttpHandler(opts: {
   corsOrigin: string;
   authLimiter: TokenBucketRateLimiter;
   inviteRequired: boolean;
+  adminUserId: string;
   publicLimiter: TokenBucketRateLimiter;
   invitePublicLimiter: TokenBucketRateLimiter;
 }) {
-  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired, publicLimiter, invitePublicLimiter } = opts;
+  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired, adminUserId, publicLimiter, invitePublicLimiter } = opts;
 
   function requireAuth(req: IncomingMessage): { ok: true; userId: string } | { ok: false } {
     const token = extractBearer(req.headers.authorization) ?? extractBearer(req.headers.Authorization);
@@ -122,6 +130,16 @@ export function createHttpHandler(opts: {
       return { ok: true, userId };
     } catch {
       return { ok: false };
+    }
+  }
+
+  async function writeMetric(name: MetricEventName, userId?: string | null) {
+    try {
+      await prisma.eventMetric.create({
+        data: { name, userId: userId ?? null }
+      });
+    } catch {
+      // Metrics must never break product flows.
     }
   }
 
@@ -182,6 +200,7 @@ export function createHttpHandler(opts: {
         return;
       }
       json(res, 200, { code: created.code, createdAt: created.createdAt.getTime() });
+      void writeMetric("invite_created", auth.userId);
       return;
     }
 
@@ -252,6 +271,54 @@ export function createHttpHandler(opts: {
         return;
       }
       json(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === "/metrics/event" && req.method === "POST") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+
+      const body = await readJson(req, 4 * 1024);
+      const name = typeof body?.name === "string" ? body.name : "";
+      if (name !== "silent_enabled" && name !== "silent_disabled") {
+        json(res, 400, { error: "invalid_payload" });
+        return;
+      }
+
+      void writeMetric(name, auth.userId);
+      json(res, 200, { ok: true });
+      return;
+    }
+
+    if (path === "/metrics/summary" && req.method === "GET") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+      if (!adminUserId || auth.userId !== adminUserId) {
+        json(res, 403, { error: "forbidden" });
+        return;
+      }
+
+      const to = new Date();
+      const from = new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const rows = await prisma.eventMetric.groupBy({
+        by: ["name"],
+        where: { createdAt: { gte: from } },
+        _count: { _all: true }
+      });
+
+      json(res, 200, {
+        fromTs: from.getTime(),
+        toTs: to.getTime(),
+        items: rows
+          .map((r: any) => ({ name: r.name as string, count: Number(r._count?._all ?? 0) }))
+          .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+      });
       return;
     }
 
@@ -445,6 +512,7 @@ export function createHttpHandler(opts: {
               err._code = "invite_used";
               throw err;
             }
+            await tx.eventMetric.create({ data: { name: "invite_used", userId: user.id } });
           }
 
           // MVP default chat membership so messaging works without extra endpoints.

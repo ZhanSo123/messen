@@ -36,6 +36,7 @@ const httpServer = createServer(
     jwtSecret: config.jwtSecret,
     corsOrigin: config.corsOrigin,
     inviteRequired: config.inviteRequired,
+    adminUserId: config.adminUserId,
     publicLimiter,
     invitePublicLimiter,
     authLimiter

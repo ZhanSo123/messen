@@ -59,6 +59,16 @@ export function registerPostHandlers(opts) {
                 },
                 select: { id: true, createdAt: true, visibility: true }
             });
+            // Privacy-safe analytics (no content).
+            try {
+                await prisma.eventMetric.create({
+                    data: {
+                        name: created.visibility === "PUBLIC" ? "post_created_public" : "post_created_private",
+                        userId
+                    }
+                });
+            }
+            catch { }
             const ackPayload = { tempId, postId: created.id, serverTs: created.createdAt.getTime() };
             socket.emit("post:ack", ackPayload);
             ack?.(ackPayload);

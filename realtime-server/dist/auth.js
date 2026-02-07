@@ -1,14 +1,4 @@
-import jwt from "jsonwebtoken";
-import { z } from "zod";
-const JwtPayloadSchema = z.object({
-    sub: z.string()
-});
-export function verifyJwt(token, secret) {
-    const decoded = jwt.verify(token, secret);
-    const payload = JwtPayloadSchema.parse(decoded);
-    return { userId: payload.sub };
-}
-function extractBearer(headerValue) {
+export function extractBearer(headerValue) {
     if (typeof headerValue !== "string")
         return null;
     const v = headerValue.trim();

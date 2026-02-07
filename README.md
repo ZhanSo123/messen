@@ -30,6 +30,10 @@ Invite links (closed alpha):
 - Create invites in UI: `/settings` -> Invites -> Create.
 - Deep-link: copy `${origin}/register?invite=<code>` from Settings -> Invites and open it on another device/user.
 
+Privacy-safe analytics (no content):
+- Set `ADMIN_USER_ID=<userId>` in `realtime-server/.env` to enable admin-only `GET /metrics/summary` (last 7 days, count by event name).
+- Silent Mode toggles are tracked via `POST /metrics/event` (best-effort, no payload besides event name).
+
 3) Client
 
 ```bash
