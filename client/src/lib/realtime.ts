@@ -64,9 +64,20 @@ export function createRealtimeClient(opts: {
   onGiveUp?: (info: { tempId: string; reason: string }) => void;
   onPostGiveUp?: (info: { tempId: string; reason: string }) => void;
 }): RealtimeClient {
+  const token =
+    opts.token ||
+    (typeof window !== "undefined"
+      ? (() => {
+          try {
+            return localStorage.getItem("nm:token") ?? "";
+          } catch {
+            return "";
+          }
+        })()
+      : "");
   const socket = io(opts.url, {
     transports: ["websocket"],
-    auth: { token: opts.token },
+    auth: { token },
     autoConnect: true,
     reconnection: true
   });

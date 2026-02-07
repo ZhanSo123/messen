@@ -1,24 +1,76 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useState } from "react";
 import { loadSettings, saveSettings, toggleChatInFocus, type UserSettings } from "../lib/settings";
 import { loadRecentChats, saveRecentChats } from "../lib/recentChats";
 import { PostFeed } from "../components/PostFeed";
+import { clearCachedMe, clearToken, getMe, loadCachedMe, loadToken, saveCachedMe } from "../lib/auth";
 
 export default function HomePage() {
-  const realtimeUrl = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
-  const meId = process.env.NEXT_PUBLIC_ME_ID ?? "u_1";
-  const token = process.env.NEXT_PUBLIC_TOKEN ?? "";
+  const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
+  const router = useRouter();
 
-  const [settings, setSettings] = useState<UserSettings>(() => loadSettings(meId));
-  const [recent, setRecent] = useState<string[]>(() => loadRecentChats(meId));
+  const [token, setToken] = useState<string | null>(null);
+  const [me, setMe] = useState(() => loadCachedMe());
+
+  const meId = me?.id ?? null;
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
   const [newChatId, setNewChatId] = useState("");
 
   useEffect(() => {
+    const t = loadToken();
+    if (!t) {
+      router.replace("/login");
+      return;
+    }
+    setToken(t);
+  }, [router]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const fresh = await getMe({ apiBase, token });
+        if (cancelled) return;
+        saveCachedMe(fresh);
+        setMe(fresh);
+      } catch {
+        clearToken();
+        clearCachedMe();
+        router.replace("/login");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase, token, router]);
+
+  useEffect(() => {
+    if (!meId) return;
+    setSettings(loadSettings(meId));
+    setRecent(loadRecentChats(meId));
+  }, [meId]);
+
+  useEffect(() => {
+    if (!meId) return;
     // Cross-tab sync.
     const onStorage = (e: StorageEvent) => {
       if (!e.key) return;
+      if (e.key === "nm:token" || e.key === "nm:me") {
+        // Auth changed in another tab.
+        const t = loadToken();
+        if (!t) {
+          router.replace("/login");
+          return;
+        }
+        setToken(t);
+        setMe(loadCachedMe());
+        return;
+      }
       if (e.key.startsWith(`nm:settings:${meId}`)) {
         setSettings(loadSettings(meId));
         return;
@@ -30,55 +82,57 @@ export default function HomePage() {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [meId]);
+  }, [meId, router]);
 
   useEffect(() => {
+    if (!meId || !settings) return;
     saveSettings(meId, settings);
   }, [meId, settings]);
 
   useEffect(() => {
+    if (!meId) return;
     saveRecentChats(meId, recent);
   }, [meId, recent]);
 
   const focusChats = useMemo(
-    () => settings.focusChats.slice().sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)),
-    [settings.focusChats]
+    () => (settings ? settings.focusChats.slice().sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) : []),
+    [settings]
   );
 
   function addFocusChat() {
     const id = newChatId.trim();
     if (!id) return;
-    setSettings((s) => toggleChatInFocus(s, id));
+    setSettings((s) => (s ? toggleChatInFocus(s, id) : s));
     setNewChatId("");
   }
 
-  if (!token) {
-    return (
-      <div style={{ maxWidth: 720 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Missing token</div>
-        <div style={{ opacity: 0.8 }}>
-          Set <code>NEXT_PUBLIC_TOKEN</code> in <code>client/.env.local</code> (copy from <code>client/.env.example</code>)
-          using the output of <code>realtime-server</code> <code>npm run seed:dev</code>.
-        </div>
-      </div>
-    );
-  }
+  if (!token || !meId || !settings) return null;
 
   return (
     <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
         <div style={{ fontWeight: 800, fontSize: 18 }}>Focus</div>
         <div style={{ opacity: 0.7, fontSize: 12 }}>
-          me: {meId} | realtime: {realtimeUrl}
+          me: {me?.username ?? meId} | api: {apiBase}
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
         <button
-          onClick={() => setSettings((s) => ({ ...s, silentMode: !s.silentMode }))}
+          onClick={() => setSettings((s) => (s ? { ...s, silentMode: !s.silentMode } : s))}
           style={{ padding: "8px 12px", border: "1px solid #ddd", background: settings.silentMode ? "#111" : "#fff", color: settings.silentMode ? "#fff" : "#111" }}
         >
           Silent: {settings.silentMode ? "On" : "Off"}
+        </button>
+        <button
+          onClick={() => {
+            clearToken();
+            clearCachedMe();
+            router.replace("/login");
+          }}
+          style={{ padding: "8px 12px", border: "1px solid #ddd", background: "#fff" }}
+        >
+          Logout
         </button>
         <div style={{ opacity: 0.75, fontSize: 12 }}>Silent mode applies inside chat UI.</div>
       </div>
@@ -96,7 +150,7 @@ export default function HomePage() {
                   <span style={{ fontWeight: 650 }}>{chatId}</span>
                 </Link>
                 <button
-                  onClick={() => setSettings((s) => toggleChatInFocus(s, chatId))}
+                  onClick={() => setSettings((s) => (s ? toggleChatInFocus(s, chatId) : s))}
                   style={{
                     padding: "6px 10px",
                     border: "1px solid #ddd",
@@ -122,7 +176,7 @@ export default function HomePage() {
             onKeyDown={(e) => {
               if (e.key === "Enter") addFocusChat();
             }}
-            placeholder="chatId (e.g. chat_123)"
+            placeholder="chatId (e.g. chat_general)"
             style={{ flex: 1, padding: 10, border: "1px solid #ddd" }}
           />
           <button onClick={addFocusChat} style={{ padding: "10px 14px" }}>
@@ -140,7 +194,7 @@ export default function HomePage() {
                   <span style={{ fontWeight: 650 }}>{chatId}</span>
                 </Link>
                 <button
-                  onClick={() => setSettings((s) => toggleChatInFocus(s, chatId))}
+                  onClick={() => setSettings((s) => (s ? toggleChatInFocus(s, chatId) : s))}
                   style={{ padding: "6px 10px", border: "1px solid #ddd", background: "#fff" }}
                 >
                   Unpin
@@ -151,7 +205,7 @@ export default function HomePage() {
         )}
       </div>
 
-      <PostFeed token={token} meId={meId} realtimeUrl={realtimeUrl} silentMode={settings.silentMode} />
+      <PostFeed token={token} meId={meId} realtimeUrl={apiBase} silentMode={settings.silentMode} />
     </div>
   );
 }

@@ -19,7 +19,8 @@ cd realtime-server
 npm i
 cp .env.example .env
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev
+# optional: creates chat_general + 2 seed users (u_1/u_2, password123)
 npm run seed:dev
 npm run dev
 ```
@@ -30,9 +31,13 @@ npm run dev
 cd client
 npm i
 cp .env.example .env.local
-# вставь NEXT_PUBLIC_TOKEN из seed:dev
 npm run dev
 ```
+
+4) Auth
+
+- Open `http://localhost:3000/register` and create 2 users.
+- They get JWT stored in `localStorage` under `nm:token`, and profile under `nm:me`.
 
 ## Smoke Tests (Manual)
 

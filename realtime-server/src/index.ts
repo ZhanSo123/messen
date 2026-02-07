@@ -3,14 +3,29 @@ import { createServer } from "node:http";
 import { Server } from "socket.io";
 import { config } from "./config.js";
 import { prisma } from "./db.js";
-import { extractTokenFromHandshake, verifyJwt } from "./auth.js";
+import { extractTokenFromHandshake } from "./auth.js";
+import { verifyJwt } from "./authJwt.js";
 import { TokenBucketRateLimiter } from "./ratelimit.js";
 import { joinChatRoom, userRoom } from "./rooms.js";
 import { registerMessageHandlers } from "./handlers/messages.js";
 import { registerReactionHandlers } from "./handlers/reactions.js";
 import { registerPostHandlers } from "./handlers/posts.js";
+import { createHttpHandler } from "./http.js";
 
-const httpServer = createServer();
+const authLimiter = new TokenBucketRateLimiter({
+  capacity: 10,
+  refillTokens: 10,
+  refillMs: 60_000
+});
+
+const httpServer = createServer(
+  createHttpHandler({
+    prisma,
+    jwtSecret: config.jwtSecret,
+    corsOrigin: config.corsOrigin,
+    authLimiter
+  })
+);
 
 const io = new Server(httpServer, {
   cors: {

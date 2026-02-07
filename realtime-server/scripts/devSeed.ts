@@ -1,24 +1,28 @@
 import "dotenv/config";
-import jwt from "jsonwebtoken";
 import { prisma } from "../src/db.js";
 import { config } from "../src/config.js";
+import { signJwt } from "../src/authJwt.js";
+import bcrypt from "bcryptjs";
 
 async function main() {
   // Predictable IDs for MVP local dev.
   const meId = "u_1";
   const otherId = "u_2";
-  const chatId = "chat_123";
+  const chatId = "chat_general";
+
+  const seedPassword = "password123";
+  const seedHash = await bcrypt.hash(seedPassword, 10);
 
   await prisma.user.upsert({
     where: { id: meId },
-    update: {},
-    create: { id: meId }
+    update: { username: "u_1", passwordHash: seedHash, displayName: "u_1" },
+    create: { id: meId, username: "u_1", passwordHash: seedHash, displayName: "u_1" }
   });
 
   await prisma.user.upsert({
     where: { id: otherId },
-    update: {},
-    create: { id: otherId }
+    update: { username: "u_2", passwordHash: seedHash, displayName: "u_2" },
+    create: { id: otherId, username: "u_2", passwordHash: seedHash, displayName: "u_2" }
   });
 
   await prisma.chat.upsert({
@@ -39,8 +43,8 @@ async function main() {
     create: { chatId, userId: otherId }
   });
 
-  const meToken = jwt.sign({ sub: meId }, config.jwtSecret, { expiresIn: "7d" });
-  const otherToken = jwt.sign({ sub: otherId }, config.jwtSecret, { expiresIn: "7d" });
+  const meToken = signJwt(meId, config.jwtSecret);
+  const otherToken = signJwt(otherId, config.jwtSecret);
 
   // eslint-disable-next-line no-console
   console.log("Seed OK");
@@ -49,9 +53,17 @@ async function main() {
   // eslint-disable-next-line no-console
   console.log("meId:", meId);
   // eslint-disable-next-line no-console
+  console.log("meUsername:", "u_1");
+  // eslint-disable-next-line no-console
+  console.log("mePassword:", seedPassword);
+  // eslint-disable-next-line no-console
   console.log("meToken:", meToken);
   // eslint-disable-next-line no-console
   console.log("otherId:", otherId);
+  // eslint-disable-next-line no-console
+  console.log("otherUsername:", "u_2");
+  // eslint-disable-next-line no-console
+  console.log("otherPassword:", seedPassword);
   // eslint-disable-next-line no-console
   console.log("otherToken:", otherToken);
 }
@@ -65,4 +77,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
