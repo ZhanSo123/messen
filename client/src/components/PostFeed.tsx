@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { PostAck, PostBroadcast, PostVisibility } from "../lib/realtimeTypes";
 import { createRealtimeClient } from "../lib/realtime";
 import { ReactionStore } from "../lib/reactionStore";
+import { clearCachedMe, clearToken } from "../lib/auth";
 
 type UiPost = {
   key: string; // tempId or postId
@@ -26,10 +28,12 @@ function makeReactTempId(): string {
 
 export function PostFeed(props: { token: string; meId: string; realtimeUrl: string; silentMode: boolean }) {
   const { token, meId, realtimeUrl, silentMode } = props;
+  const router = useRouter();
   const [text, setText] = useState("");
   const [visibility, setVisibility] = useState<PostVisibility>("PUBLIC");
   const [posts, setPosts] = useState<UiPost[]>([]);
-  const [historyReady, setHistoryReady] = useState(false);
+  const [restStatus, setRestStatus] = useState<"loading" | "ok" | "forbidden" | "unavailable">("loading");
+  const [restRetry, setRestRetry] = useState(0);
 
   const reactionsRef = useRef(new ReactionStore());
   const [reactionsRev, setReactionsRev] = useState(0);
@@ -119,7 +123,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
 
   useEffect(() => {
     let cancelled = false;
-    setHistoryReady(false);
+    setRestStatus("loading");
 
     void (async () => {
       try {
@@ -127,6 +131,22 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
           method: "GET",
           headers: { authorization: `Bearer ${token}` }
         });
+        if (cancelled) return;
+        if (res.status === 401) {
+          clearToken();
+          clearCachedMe();
+          router.replace("/login");
+          return;
+        }
+        if (res.status === 403) {
+          setRestStatus("forbidden");
+          return;
+        }
+        if (!res.ok) {
+          setRestStatus("unavailable");
+          return;
+        }
+
         const data = await res.json().catch(() => null);
         if (cancelled) return;
         const items: PostBroadcast[] = Array.isArray(data?.items) ? data.items : [];
@@ -151,25 +171,26 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
           }
           return next;
         });
-      } finally {
-        if (!cancelled) setHistoryReady(true);
+        setRestStatus("ok");
+      } catch {
+        if (!cancelled) setRestStatus("unavailable");
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [rt, realtimeUrl, token]);
+  }, [rt, realtimeUrl, token, router, restRetry]);
 
   useEffect(() => {
-    if (!historyReady) return;
-    rt.socket.connect();
+    if (restStatus !== "ok") return;
+    rt.ensureConnected();
     rt.setFeedActive(true);
     return () => {
       rt.setFeedActive(false);
       rt.close();
     };
-  }, [rt, historyReady]);
+  }, [rt, restStatus]);
 
   function onPost() {
     const trimmed = text.trim();
@@ -209,6 +230,25 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
     });
     return copy;
   }, [posts]);
+
+  if (restStatus === "forbidden") {
+    return (
+      <div style={{ border: "1px solid #ddd", padding: 12 }}>
+        <div style={{ fontWeight: 700 }}>No access</div>
+      </div>
+    );
+  }
+
+  if (restStatus === "unavailable") {
+    return (
+      <div style={{ border: "1px solid #ddd", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontWeight: 700 }}>Server unavailable</div>
+        <button onClick={() => setRestRetry((x) => x + 1)} style={{ padding: "10px 14px", width: "fit-content" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ border: "1px solid #ddd", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>

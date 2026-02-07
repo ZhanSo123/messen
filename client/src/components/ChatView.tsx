@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { MsgAck, MsgBroadcast } from "../lib/realtimeTypes";
 import { createRealtimeClient } from "../lib/realtime";
 import { ReactionStore } from "../lib/reactionStore";
 import { loadSettings, saveSettings, toggleChatInFocus, type UserSettings } from "../lib/settings";
 import { pushRecentChat } from "../lib/recentChats";
+import { clearCachedMe, clearToken } from "../lib/auth";
 
 type UiMsg = {
   key: string; // tempId or msgId
@@ -22,9 +24,11 @@ type UiMsg = {
 
 export function ChatView(props: { chatId: string; token: string; meId: string; realtimeUrl: string }) {
   const { chatId, token, meId, realtimeUrl } = props;
+  const router = useRouter();
   const [text, setText] = useState("");
   const [msgs, setMsgs] = useState<UiMsg[]>([]);
-  const [historyReady, setHistoryReady] = useState(false);
+  const [restStatus, setRestStatus] = useState<"loading" | "ok" | "forbidden" | "unavailable">("loading");
+  const [restRetry, setRestRetry] = useState(0);
   const reactionsRef = useRef(new ReactionStore());
   const [reactionsRev, setReactionsRev] = useState(0);
   const bumpReactions = () => setReactionsRev((x) => x + 1);
@@ -141,7 +145,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
 
   useEffect(() => {
     let cancelled = false;
-    setHistoryReady(false);
+    setRestStatus("loading");
 
     void (async () => {
       try {
@@ -149,6 +153,22 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
           method: "GET",
           headers: { authorization: `Bearer ${token}` }
         });
+        if (cancelled) return;
+        if (res.status === 401) {
+          clearToken();
+          clearCachedMe();
+          router.replace("/login");
+          return;
+        }
+        if (res.status === 403) {
+          setRestStatus("forbidden");
+          return;
+        }
+        if (!res.ok) {
+          setRestStatus("unavailable");
+          return;
+        }
+
         const data = await res.json().catch(() => null);
         if (cancelled) return;
         const items: MsgBroadcast[] = Array.isArray(data?.items) ? data.items : [];
@@ -174,8 +194,9 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
           }
           return next;
         });
-      } finally {
-        if (!cancelled) setHistoryReady(true);
+        setRestStatus("ok");
+      } catch {
+        if (!cancelled) setRestStatus("unavailable");
       }
     })();
 
@@ -185,11 +206,11 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
       rt.setActiveChat(null);
       rt.close();
     };
-  }, [rt, chatId, realtimeUrl, token, meId]);
+  }, [rt, chatId, realtimeUrl, token, meId, router, restRetry]);
 
   useEffect(() => {
-    if (!historyReady) return;
-    rt.socket.connect();
+    if (restStatus !== "ok") return;
+    rt.ensureConnected();
     let cancelled = false;
     void rt.joinChat(chatId).then(() => {
       if (cancelled) return;
@@ -200,7 +221,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
     return () => {
       cancelled = true;
     };
-  }, [historyReady, rt, chatId]);
+  }, [restStatus, rt, chatId]);
 
   function onSend() {
     const trimmed = text.trim();
@@ -243,6 +264,26 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
   }
 
   const quickEmojis = ["😀", "🔥", "❤️", "😭", "🎉", "🤝"];
+
+  if (restStatus === "forbidden") {
+    return (
+      <div style={{ maxWidth: 720 }}>
+        <div style={{ fontWeight: 700, marginBottom: 8 }}>No access</div>
+        <div style={{ opacity: 0.75, fontSize: 12 }}>You are not a member of this chat.</div>
+      </div>
+    );
+  }
+
+  if (restStatus === "unavailable") {
+    return (
+      <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontWeight: 700 }}>Server unavailable</div>
+        <button onClick={() => setRestRetry((x) => x + 1)} style={{ padding: "10px 14px", width: "fit-content" }}>
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 720 }}>

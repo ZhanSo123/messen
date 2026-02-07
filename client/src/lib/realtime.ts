@@ -26,6 +26,7 @@ import { PostQueue } from "./postQueue";
 
 export type RealtimeClient = {
   socket: Socket;
+  ensureConnected: () => void;
   joinChat: (chatId: string) => Promise<boolean>;
   setActiveChat: (chatId: string | null) => void;
   syncChat: (chatId: string) => void;
@@ -86,6 +87,13 @@ export function createRealtimeClient(opts: {
   });
 
   const FEED_KEY = "feed";
+  let connectRequested = false;
+  function ensureConnected() {
+    if (socket.connected) return;
+    if (connectRequested) return;
+    connectRequested = true;
+    socket.connect();
+  }
 
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   function scheduleFlushNow() {
@@ -368,8 +376,10 @@ export function createRealtimeClient(opts: {
   }
 
   function primeChatHistory(items: MsgBroadcast[]) {
+    // Cursor only ever moves forward (never rolled back).
+    // Items are expected ASC but we tolerate any order.
     for (const it of items) {
-      if (!it?.msgId) continue;
+      if (!it?.msgId || typeof it.serverTs !== "number") continue;
       seenIds.add(kMsg(it.msgId));
       observeCursor(it.chatId, it.serverTs, it.msgId);
     }
@@ -377,7 +387,7 @@ export function createRealtimeClient(opts: {
 
   function primeFeedHistory(items: PostBroadcast[]) {
     for (const it of items) {
-      if (!it?.postId) continue;
+      if (!it?.postId || typeof it.serverTs !== "number") continue;
       seenIds.add(kPost(it.postId));
       observeCursor(FEED_KEY, it.serverTs, it.postId);
     }
@@ -474,6 +484,7 @@ export function createRealtimeClient(opts: {
 
   return {
     socket,
+    ensureConnected,
     joinChat,
     setActiveChat,
     syncChat,
