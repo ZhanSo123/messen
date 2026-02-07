@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages    Message[]
+  memberships ChatMember[]
+  posts       Post[]
+  reactions   Reaction[]
+}
+
+model Chat {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  ChatMember[]
+  messages Message[]
+}
+
+model ChatMember {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  chatId String
+  userId String
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id       String   @id @default(cuid())
+  chatId   String
+  fromId   String
+
+  tempId   String
+  text     String
+  clientTs BigInt
+  serverTs DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  from User @relation(fields: [fromId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, tempId])
+  @@index([chatId, serverTs])
+}
+
+model Post {
+  id       String   @id @default(cuid())
+  authorId String
+  tempId   String
+  text     String
+  clientTs BigInt
+  createdAt DateTime @default(now())
+  visibility PostVisibility @default(PUBLIC)
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, tempId])
+  @@index([createdAt, id])
+  @@index([visibility, createdAt, id])
+}
+
+enum PostVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ReactionTargetType {
+  MESSAGE
+  POST
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  userId    String
+  targetType ReactionTargetType
+  targetId  String
+  chatId    String?
+  emoji     String
+  createdAt DateTime @default(now())
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId, emoji])
+  @@index([targetType, targetId])
+  @@index([userId, targetType, targetId])
+  @@index([targetType, createdAt, id])
+  @@index([targetType, chatId, createdAt, id])
+  @@index([chatId])
+  @@index([userId])
+}

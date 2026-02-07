@@ -1,0 +1,9 @@
+{
+  "name": "new-messenger",
+  "private": true,
+  "workspaces": [
+    "realtime-server",
+    "client"
+  ]
+}
+
