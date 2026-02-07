@@ -109,8 +109,10 @@ export function createHttpHandler(opts: {
   corsOrigin: string;
   authLimiter: TokenBucketRateLimiter;
   inviteRequired: boolean;
+  publicLimiter: TokenBucketRateLimiter;
+  invitePublicLimiter: TokenBucketRateLimiter;
 }) {
-  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired } = opts;
+  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired, publicLimiter, invitePublicLimiter } = opts;
 
   function requireAuth(req: IncomingMessage): { ok: true; userId: string } | { ok: false } {
     const token = extractBearer(req.headers.authorization) ?? extractBearer(req.headers.Authorization);
@@ -136,6 +138,11 @@ export function createHttpHandler(opts: {
     const path = url.pathname;
 
     if (path === "/auth/config" && req.method === "GET") {
+      const ip = getIp(req);
+      if (!publicLimiter.consume(`pub:config:${ip}`, 1)) {
+        json(res, 429, { error: "rate_limited" });
+        return;
+      }
       json(res, 200, { inviteRequired });
       return;
     }
@@ -155,10 +162,10 @@ export function createHttpHandler(opts: {
         return;
       }
 
-      // Short, URL-safe invite code.
+      // Short, URL-safe invite code (crypto-strong).
       let created: { code: string; createdAt: Date } | null = null;
       for (let i = 0; i < 3; i++) {
-        const code = randomBytes(9).toString("base64url");
+        const code = randomBytes(18).toString("base64url");
         try {
           created = await prisma.inviteCode.create({
             data: { code, createdByUserId: auth.userId },
@@ -194,7 +201,39 @@ export function createHttpHandler(opts: {
       return;
     }
 
+    if (path === "/invite/revoke" && req.method === "POST") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+      const body = await readJson(req, 8 * 1024);
+      const code = typeof body?.code === "string" ? body.code.trim() : "";
+      if (!code || code.length > 80) {
+        json(res, 400, { error: "invalid_payload" });
+        return;
+      }
+      const resDel = await prisma.inviteCode.deleteMany({
+        where: { code, createdByUserId: auth.userId, usedAt: null }
+      });
+      if (resDel.count !== 1) {
+        json(res, 400, { error: "invalid_invite" satisfies InviteErrorCode });
+        return;
+      }
+      json(res, 200, { ok: true });
+      return;
+    }
+
     if (path.startsWith("/invite/") && req.method === "GET") {
+      const ip = getIp(req);
+      if (!publicLimiter.consume(`pub:invite:${ip}`, 1)) {
+        json(res, 429, { error: "rate_limited" });
+        return;
+      }
+      if (!invitePublicLimiter.consume(`pub:invite:strict:${ip}`, 1)) {
+        json(res, 429, { error: "rate_limited" });
+        return;
+      }
       const code = decodeURIComponent(path.slice("/invite/".length));
       if (!code || code.length > 80) {
         json(res, 400, { error: "invalid_invite" satisfies InviteErrorCode });

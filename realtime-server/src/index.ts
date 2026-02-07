@@ -18,12 +18,26 @@ const authLimiter = new TokenBucketRateLimiter({
   refillMs: 60_000
 });
 
+const publicLimiter = new TokenBucketRateLimiter({
+  capacity: 60,
+  refillTokens: 60,
+  refillMs: 60_000
+});
+
+const invitePublicLimiter = new TokenBucketRateLimiter({
+  capacity: 30,
+  refillTokens: 30,
+  refillMs: 60_000
+});
+
 const httpServer = createServer(
   createHttpHandler({
     prisma,
     jwtSecret: config.jwtSecret,
     corsOrigin: config.corsOrigin,
     inviteRequired: config.inviteRequired,
+    publicLimiter,
+    invitePublicLimiter,
     authLimiter
   })
 );

@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { Suspense, useEffect, useState } from "react";
 import { getAuthConfig, loadToken, register, saveCachedMe, saveToken } from "../../lib/auth";
 import { isOnboarded } from "../../lib/onboarding";
 
-export default function RegisterPage() {
+function RegisterInner() {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
   const router = useRouter();
+  const sp = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState("");
@@ -20,6 +21,12 @@ export default function RegisterPage() {
     if (!token) return;
     router.replace("/");
   }, [router]);
+
+  useEffect(() => {
+    const fromQuery = (sp?.get("invite") ?? "").trim();
+    if (!fromQuery) return;
+    setInviteCode(fromQuery);
+  }, [sp]);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,11 +49,15 @@ export default function RegisterPage() {
     e.preventDefault();
     setErr(null);
     try {
+      if (inviteRequired && !inviteCode.trim()) {
+        setErr("invalid_invite");
+        return;
+      }
       const resp = await register({
         apiBase,
         username: username.trim(),
         password,
-        ...(inviteRequired ? { inviteCode: inviteCode.trim() } : {})
+        ...(inviteCode.trim() ? { inviteCode: inviteCode.trim() } : {})
       });
       saveToken(resp.token);
       saveCachedMe(resp.user);
@@ -56,6 +67,8 @@ export default function RegisterPage() {
       setErr(String(e?.message ?? "register_failed"));
     }
   }
+
+  const showInviteField = inviteRequired || inviteCode.trim().length > 0;
 
   return (
       <div style={{ maxWidth: 420, display: "flex", flexDirection: "column", gap: 12 }}>
@@ -78,13 +91,13 @@ export default function RegisterPage() {
           type="password"
           style={{ padding: 10, border: "1px solid #ddd" }}
         />
-        {inviteRequired ? (
+        {showInviteField ? (
           <input
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value)}
             placeholder="invite code"
             autoComplete="off"
-            style={{ padding: 10, border: "1px solid #ddd" }}
+            style={{ padding: 10, border: `1px solid ${inviteRequired && !inviteCode.trim() ? "#b00020" : "#ddd"}` }}
           />
         ) : null}
         <button type="submit" style={{ padding: "10px 12px" }}>
@@ -97,6 +110,14 @@ export default function RegisterPage() {
       <div style={{ fontSize: 12, opacity: 0.85 }}>
         Have an account? <Link href="/login">Login</Link>
       </div>
-    </div>
+      </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterInner />
+    </Suspense>
   );
 }

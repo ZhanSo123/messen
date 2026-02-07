@@ -18,6 +18,7 @@ export default function SettingsPage() {
   const [invites, setInvites] = useState<InviteItem[]>([]);
   const [inviteErr, setInviteErr] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [origin, setOrigin] = useState<string>("");
 
   useEffect(() => {
     const t = loadToken();
@@ -27,6 +28,10 @@ export default function SettingsPage() {
     }
     setToken(t);
   }, [router]);
+
+  useEffect(() => {
+    setOrigin(typeof window !== "undefined" ? window.location.origin : "");
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -89,6 +94,34 @@ export default function SettingsPage() {
     setInviteErr(null);
     try {
       const res = await fetch(`${apiBase}/invite/create`, { method: "POST", headers: { authorization: `Bearer ${t}` } });
+      if (res.status === 401) {
+        clearToken();
+        clearCachedMe();
+        router.replace("/login");
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setInviteErr(String(data?.error ?? "failed"));
+        return;
+      }
+      await loadInvites(t);
+    } catch {
+      setInviteErr("server_unavailable");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function revokeInvite(t: string, code: string) {
+    setInviteBusy(true);
+    setInviteErr(null);
+    try {
+      const res = await fetch(`${apiBase}/invite/revoke`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${t}`, "content-type": "application/json" },
+        body: JSON.stringify({ code })
+      });
       if (res.status === 401) {
         clearToken();
         clearCachedMe();
@@ -194,14 +227,35 @@ export default function SettingsPage() {
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                   <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>{it.code}</div>
+                  {origin ? (
+                    <div style={{ opacity: 0.72, fontSize: 12, wordBreak: "break-all" }}>
+                      {origin}/register?invite={it.code}
+                    </div>
+                  ) : null}
                   <div style={{ opacity: 0.65, fontSize: 12 }}>{new Date(it.createdAt).toLocaleString()}</div>
                 </div>
-                <button
-                  onClick={() => copy(it.code)}
-                  style={{ padding: "8px 12px", border: "1px solid #ddd", background: "#fff" }}
-                >
-                  Copy
-                </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button
+                    onClick={() => copy(it.code)}
+                    style={{ padding: "8px 12px", border: "1px solid #ddd", background: "#fff" }}
+                  >
+                    Copy code
+                  </button>
+                  <button
+                    onClick={() => origin && copy(`${origin}/register?invite=${it.code}`)}
+                    style={{ padding: "8px 12px", border: "1px solid #ddd", background: "#fff" }}
+                    disabled={!origin}
+                  >
+                    Copy link
+                  </button>
+                  <button
+                    onClick={() => revokeInvite(token, it.code)}
+                    style={{ padding: "8px 12px", border: "1px solid #ddd", background: "#fff" }}
+                    disabled={inviteBusy}
+                  >
+                    Revoke
+                  </button>
+                </div>
               </div>
             ))}
           </div>

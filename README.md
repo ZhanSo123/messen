@@ -28,6 +28,7 @@ npm run dev
 Invite links (closed alpha):
 - Set `INVITE_REQUIRED=true` in `realtime-server/.env` to require invite codes for `/auth/register`.
 - Create invites in UI: `/settings` -> Invites -> Create.
+- Deep-link: copy `${origin}/register?invite=<code>` from Settings -> Invites and open it on another device/user.
 
 3) Client
 
