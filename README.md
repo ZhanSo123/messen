@@ -68,3 +68,11 @@ npm run dev
 
 - Открой `/` в новой вкладке: сначала подтягиваются посты через `GET /feed` и сразу отображаются; затем подключается сокет и выполняется sync для догонки.
 - Открой `/chat/chat_general`: сначала подтягиваются сообщения через `GET /chat/:chatId/messages`; затем сокет join + sync/reactions sync.
+
+## Navigation
+
+- Bottom Bubble Nav:
+  - Focus: `/` (и `/chat/...`)
+  - Feed: `/feed`
+  - Search: `/search` (заглушка)
+  - Settings: `/settings` (Silent toggle + Logout)
