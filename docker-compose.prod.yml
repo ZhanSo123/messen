@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: new-messenger-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-messenger}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-messenger}
+      POSTGRES_DB: ${POSTGRES_DB:-messenger}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  realtime-server:
+    build:
+      context: .
+      dockerfile: realtime-server/Dockerfile
+    container_name: new-messenger-realtime
+    environment:
+      PORT: "4001"
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      INVITE_REQUIRED: ${INVITE_REQUIRED:-false}
+      ADMIN_USER_ID: ${ADMIN_USER_ID:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "4001:4001"
+    command: ["sh", "-lc", "cd realtime-server && npx prisma migrate deploy && node --enable-source-maps dist/index.js"]
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        NEXT_PUBLIC_REALTIME_URL: ${NEXT_PUBLIC_REALTIME_URL:-http://localhost:4001}
+    container_name: new-messenger-client
+    environment:
+      PORT: "3000"
+    depends_on:
+      - realtime-server
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+

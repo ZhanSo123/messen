@@ -93,7 +93,7 @@ io.on("connection", (socket) => {
     registerReactionHandlers({ io, socket, prisma, limiter: reactLimiter });
     registerPostHandlers({ io, socket, prisma, limiter: postLimiter });
 });
-httpServer.listen(config.port, () => {
+httpServer.listen(config.port, "0.0.0.0", () => {
     // eslint-disable-next-line no-console
     console.log(`[realtime] listening on :${config.port}`);
 });

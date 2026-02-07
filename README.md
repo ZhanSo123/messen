@@ -48,6 +48,26 @@ npm run dev
 - Open `http://localhost:3000/register` and create 2 users.
 - They get JWT stored in `localStorage` under `nm:token`, and profile under `nm:me`.
 
+## Prod (Docker Compose)
+
+```bash
+cp .env.example.prod .env.prod
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f --tail=200 postgres realtime-server client
+```
+
+Migrations (one-off):
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml exec realtime-server sh -lc "cd realtime-server && npx prisma migrate deploy"
+```
+
+Health check:
+
+```bash
+curl -s http://localhost:4001/healthz
+```
+
 ## Smoke Tests (Manual)
 
 - first run onboarding: после первого login/register (когда нет `nm:onboarded:<meId>`) открывается `/onboarding`, кнопка `Start` ставит флаг и редиректит на `/`.

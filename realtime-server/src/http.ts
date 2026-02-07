@@ -157,6 +157,11 @@ export function createHttpHandler(opts: {
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
 
+    if (path === "/healthz" && req.method === "GET") {
+      json(res, 200, { ok: true });
+      return;
+    }
+
     if (path === "/auth/config" && req.method === "GET") {
       const ip = getIp(req);
       if (!publicLimiter.consume(`pub:config:${ip}`, 1)) {

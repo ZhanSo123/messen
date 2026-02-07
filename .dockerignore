@@ -1,0 +1,14 @@
+.git
+.DS_Store
+
+node_modules
+**/node_modules
+
+client/.next
+client/out
+
+realtime-server/dist
+
+.env
+.env.*
+
