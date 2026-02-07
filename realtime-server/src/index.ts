@@ -30,6 +30,12 @@ const invitePublicLimiter = new TokenBucketRateLimiter({
   refillMs: 60_000
 });
 
+const metricsLimiter = new TokenBucketRateLimiter({
+  capacity: 30,
+  refillTokens: 30,
+  refillMs: 60_000
+});
+
 const httpServer = createServer(
   createHttpHandler({
     prisma,
@@ -39,6 +45,7 @@ const httpServer = createServer(
     adminUserId: config.adminUserId,
     publicLimiter,
     invitePublicLimiter,
+    metricsLimiter,
     authLimiter
   })
 );

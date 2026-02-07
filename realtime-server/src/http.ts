@@ -119,8 +119,10 @@ export function createHttpHandler(opts: {
   adminUserId: string;
   publicLimiter: TokenBucketRateLimiter;
   invitePublicLimiter: TokenBucketRateLimiter;
+  metricsLimiter: TokenBucketRateLimiter;
 }) {
-  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired, adminUserId, publicLimiter, invitePublicLimiter } = opts;
+  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired, adminUserId, publicLimiter, invitePublicLimiter, metricsLimiter } =
+    opts;
 
   function requireAuth(req: IncomingMessage): { ok: true; userId: string } | { ok: false } {
     const token = extractBearer(req.headers.authorization) ?? extractBearer(req.headers.Authorization);
@@ -278,6 +280,11 @@ export function createHttpHandler(opts: {
       const auth = requireAuth(req);
       if (!auth.ok) {
         json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+
+      if (!metricsLimiter.consume(`metrics:event:${auth.userId}`, 1)) {
+        json(res, 429, { error: "rate_limited" });
         return;
       }
 

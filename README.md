@@ -32,7 +32,7 @@ Invite links (closed alpha):
 
 Privacy-safe analytics (no content):
 - Set `ADMIN_USER_ID=<userId>` in `realtime-server/.env` to enable admin-only `GET /metrics/summary` (last 7 days, count by event name).
-- Silent Mode toggles are tracked via `POST /metrics/event` (best-effort, no payload besides event name).
+- Silent Mode toggles are tracked via `POST /metrics/event` (best-effort, no payload besides event name, rate-limited 30/min/user).
 
 3) Client
 
