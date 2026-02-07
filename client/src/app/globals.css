@@ -6,6 +6,9 @@
   --nm-bubble-bg: rgba(255, 255, 255, 0.64);
   --nm-bubble-border: rgba(0, 0, 0, 0.08);
   --nm-bubble-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  --nm-nav-height: 64px; /* bubble height incl padding */
+  --nm-nav-offset: 12px; /* distance from safe area */
+  --nm-nav-space: 108px; /* content bottom padding (nav + offset + breathing room) */
 }
 
 html,
@@ -27,10 +30,14 @@ body {
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Arial;
 }
 
+.nm-shell[data-nav="on"] {
+  padding-bottom: calc(var(--nm-nav-space) + env(safe-area-inset-bottom));
+}
+
 .nm-bubble-wrap {
   position: fixed;
   left: 50%;
-  bottom: calc(16px + env(safe-area-inset-bottom));
+  bottom: calc(var(--nm-nav-offset) + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 50;
   width: min(460px, calc(100vw - 36px));
@@ -51,6 +58,17 @@ body {
   -webkit-backdrop-filter: blur(16px) saturate(1.25);
 }
 
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nm-bubble {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.14);
+  }
+  .nm-bubble-btn {
+    background: rgba(255, 255, 255, 0.72);
+    border-color: rgba(0, 0, 0, 0.12);
+  }
+}
+
 .nm-bubble-btn {
   width: 44px;
   height: 44px;
@@ -68,6 +86,11 @@ body {
     border-color 200ms ease,
     color 200ms ease;
   will-change: transform;
+}
+
+.nm-bubble-btn:focus-visible {
+  outline: 3px solid rgba(16, 24, 40, 0.22);
+  outline-offset: 2px;
 }
 
 .nm-bubble-btn.is-active {
@@ -91,4 +114,3 @@ body {
     transition: none;
   }
 }
-

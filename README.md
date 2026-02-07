@@ -76,3 +76,5 @@ npm run dev
   - Feed: `/feed`
   - Search: `/search` (заглушка)
   - Settings: `/settings` (Silent toggle + Logout)
+
+Note: UI uses `env(safe-area-inset-bottom)` for iOS Safari safe-area, and falls back to a solid translucent style when `backdrop-filter` isn't supported.
