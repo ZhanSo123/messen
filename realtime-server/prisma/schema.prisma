@@ -20,6 +20,9 @@ model User {
   memberships ChatMember[]
   posts       Post[]
   reactions   Reaction[]
+
+  createdInvites InviteCode[] @relation("InvitesCreated")
+  usedInvites    InviteCode[] @relation("InvitesUsed")
 }
 
 model Chat {
@@ -106,4 +109,19 @@ model Reaction {
   @@index([targetType, chatId, createdAt, id])
   @@index([chatId])
   @@index([userId])
+}
+
+model InviteCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  createdByUserId String
+  createdAt       DateTime @default(now())
+  usedByUserId    String?
+  usedAt          DateTime?
+
+  createdBy User  @relation("InvitesCreated", fields: [createdByUserId], references: [id], onDelete: Cascade)
+  usedBy    User? @relation("InvitesUsed", fields: [usedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([createdByUserId, usedAt])
+  @@index([code])
 }

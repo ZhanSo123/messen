@@ -6,6 +6,8 @@ import { clearCachedMe, clearToken, getMe, loadCachedMe, loadToken, saveCachedMe
 import { isOnboarded } from "../../lib/onboarding";
 import { loadSettings, saveSettings, type UserSettings } from "../../lib/settings";
 
+type InviteItem = { code: string; createdAt: number };
+
 export default function SettingsPage() {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
   const router = useRouter();
@@ -13,6 +15,9 @@ export default function SettingsPage() {
   const [token, setToken] = useState<string | null>(null);
   const [me, setMe] = useState(() => loadCachedMe());
   const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [invites, setInvites] = useState<InviteItem[]>([]);
+  const [inviteErr, setInviteErr] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   useEffect(() => {
     const t = loadToken();
@@ -57,6 +62,60 @@ export default function SettingsPage() {
     saveSettings(me.id, settings);
   }, [me, settings]);
 
+  async function loadInvites(t: string) {
+    setInviteErr(null);
+    try {
+      const res = await fetch(`${apiBase}/invite/mine`, { method: "GET", headers: { authorization: `Bearer ${t}` } });
+      if (res.status === 401) {
+        clearToken();
+        clearCachedMe();
+        router.replace("/login");
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setInviteErr(String(data?.error ?? "failed"));
+        return;
+      }
+      const items: InviteItem[] = Array.isArray(data?.items) ? data.items : [];
+      setInvites(items);
+    } catch {
+      setInviteErr("server_unavailable");
+    }
+  }
+
+  async function createInvite(t: string) {
+    setInviteBusy(true);
+    setInviteErr(null);
+    try {
+      const res = await fetch(`${apiBase}/invite/create`, { method: "POST", headers: { authorization: `Bearer ${t}` } });
+      if (res.status === 401) {
+        clearToken();
+        clearCachedMe();
+        router.replace("/login");
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setInviteErr(String(data?.error ?? "failed"));
+        return;
+      }
+      await loadInvites(t);
+    } catch {
+      setInviteErr("server_unavailable");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // ignore: iOS may block without user gesture; the button click is a gesture though.
+    }
+  }
+
   useEffect(() => {
     if (!me) return;
     const onStorage = (e: StorageEvent) => {
@@ -71,6 +130,12 @@ export default function SettingsPage() {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [me, router]);
+
+  useEffect(() => {
+    if (!token) return;
+    void loadInvites(token);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   if (!token || !me || !settings) return null;
   if (!isOnboarded(me.id)) return null;
@@ -97,6 +162,52 @@ export default function SettingsPage() {
         <div style={{ opacity: 0.75, fontSize: 12 }}>A quieter UI (collapses reactions by default).</div>
       </div>
 
+      <div style={{ border: "1px solid #ddd", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ fontWeight: 800 }}>Invites</div>
+        <div style={{ opacity: 0.75, fontSize: 12 }}>Closed alpha. Create up to 5 active invite codes.</div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => createInvite(token)}
+            disabled={inviteBusy}
+            style={{ padding: "10px 14px", border: "1px solid #ddd", background: "#fff", width: "fit-content" }}
+          >
+            {inviteBusy ? "Creating..." : "Create"}
+          </button>
+          <button
+            onClick={() => loadInvites(token)}
+            style={{ padding: "10px 14px", border: "1px solid #ddd", background: "#fff", width: "fit-content" }}
+          >
+            Refresh
+          </button>
+          {inviteErr ? <div style={{ color: "#b00020", fontSize: 12 }}>error: {inviteErr}</div> : null}
+        </div>
+
+        {invites.length === 0 ? (
+          <div style={{ opacity: 0.75, fontSize: 12 }}>No active invites.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {invites.map((it) => (
+              <div
+                key={it.code}
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid #eee", padding: 10 }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}>{it.code}</div>
+                  <div style={{ opacity: 0.65, fontSize: 12 }}>{new Date(it.createdAt).toLocaleString()}</div>
+                </div>
+                <button
+                  onClick={() => copy(it.code)}
+                  style={{ padding: "8px 12px", border: "1px solid #ddd", background: "#fff" }}
+                >
+                  Copy
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <button
         onClick={() => {
           clearToken();
@@ -110,4 +221,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-

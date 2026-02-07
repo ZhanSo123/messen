@@ -43,11 +43,11 @@ export function clearCachedMe() {
 
 export type AuthResp = { token: string; user: MeUser };
 
-export async function register(opts: { apiBase: string; username: string; password: string }): Promise<AuthResp> {
+export async function register(opts: { apiBase: string; username: string; password: string; inviteCode?: string }): Promise<AuthResp> {
   const res = await fetch(`${opts.apiBase}/auth/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username: opts.username, password: opts.password })
+    body: JSON.stringify({ username: opts.username, password: opts.password, ...(opts.inviteCode ? { inviteCode: opts.inviteCode } : {}) })
   });
   const json = await res.json().catch(() => null);
   if (!res.ok) throw new Error(json?.error ?? "register_failed");
@@ -75,3 +75,9 @@ export async function getMe(opts: { apiBase: string; token: string }): Promise<M
   return (json as any).user as MeUser;
 }
 
+export async function getAuthConfig(opts: { apiBase: string }): Promise<{ inviteRequired: boolean }> {
+  const res = await fetch(`${opts.apiBase}/auth/config`, { method: "GET" });
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error ?? "config_failed");
+  return { inviteRequired: Boolean((json as any)?.inviteRequired) };
+}

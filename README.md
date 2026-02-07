@@ -25,6 +25,10 @@ npm run seed:dev
 npm run dev
 ```
 
+Invite links (closed alpha):
+- Set `INVITE_REQUIRED=true` in `realtime-server/.env` to require invite codes for `/auth/register`.
+- Create invites in UI: `/settings` -> Invites -> Create.
+
 3) Client
 
 ```bash
@@ -42,6 +46,7 @@ npm run dev
 ## Smoke Tests (Manual)
 
 - first run onboarding: после первого login/register (когда нет `nm:onboarded:<meId>`) открывается `/onboarding`, кнопка `Start` ставит флаг и редиректит на `/`.
+- invites: `POST /invite/create` -> register with invite -> reuse invite fails (`invalid_invite` / `invite_used`).
 - Send -> offline immediately -> online: сообщение не дублируется, `msg:ack` приводит `pending -> sent`.
 - Two tabs (один и тот же user/token): одно сообщение -> максимум один `msgId` в БД, клиент дедупит `msg:broadcast` по `msgId`.
 - Two tabs with different users in same chat: оба видят один и тот же `msgId` в `msg:broadcast`, без дублей при reconnect.

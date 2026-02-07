@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { PrismaClient } from "@prisma/client";
 import type { TokenBucketRateLimiter } from "./ratelimit.js";
@@ -20,7 +21,8 @@ const PasswordSchema = z.string().min(8).max(200);
 
 const RegisterSchema = z.object({
   username: UsernameSchema,
-  password: PasswordSchema
+  password: PasswordSchema,
+  inviteCode: z.string().min(1).max(80).optional()
 });
 
 const LoginSchema = z.object({
@@ -29,6 +31,7 @@ const LoginSchema = z.object({
 });
 
 type AuthErrorCode = "invalid_payload" | "invalid_credentials" | "username_taken";
+type InviteErrorCode = "invalid_invite" | "invite_used";
 
 function json(res: ServerResponse, status: number, body: any, extraHeaders?: Record<string, string>) {
   res.statusCode = status;
@@ -105,8 +108,9 @@ export function createHttpHandler(opts: {
   jwtSecret: string;
   corsOrigin: string;
   authLimiter: TokenBucketRateLimiter;
+  inviteRequired: boolean;
 }) {
-  const { prisma, jwtSecret, corsOrigin, authLimiter } = opts;
+  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired } = opts;
 
   function requireAuth(req: IncomingMessage): { ok: true; userId: string } | { ok: false } {
     const token = extractBearer(req.headers.authorization) ?? extractBearer(req.headers.Authorization);
@@ -130,6 +134,87 @@ export function createHttpHandler(opts: {
 
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
+
+    if (path === "/auth/config" && req.method === "GET") {
+      json(res, 200, { inviteRequired });
+      return;
+    }
+
+    if (path === "/invite/create" && req.method === "POST") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+
+      const active = await prisma.inviteCode.count({
+        where: { createdByUserId: auth.userId, usedAt: null }
+      });
+      if (active >= 5) {
+        json(res, 400, { error: "limit_reached" });
+        return;
+      }
+
+      // Short, URL-safe invite code.
+      let created: { code: string; createdAt: Date } | null = null;
+      for (let i = 0; i < 3; i++) {
+        const code = randomBytes(9).toString("base64url");
+        try {
+          created = await prisma.inviteCode.create({
+            data: { code, createdByUserId: auth.userId },
+            select: { code: true, createdAt: true }
+          });
+          break;
+        } catch (e: any) {
+          if (e?.code === "P2002") continue;
+          throw e;
+        }
+      }
+      if (!created) {
+        json(res, 500, { error: "server_error" });
+        return;
+      }
+      json(res, 200, { code: created.code, createdAt: created.createdAt.getTime() });
+      return;
+    }
+
+    if (path === "/invite/mine" && req.method === "GET") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+      const rows = await prisma.inviteCode.findMany({
+        where: { createdByUserId: auth.userId, usedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: { code: true, createdAt: true }
+      });
+      json(res, 200, { items: rows.map((r) => ({ code: r.code, createdAt: r.createdAt.getTime() })) });
+      return;
+    }
+
+    if (path.startsWith("/invite/") && req.method === "GET") {
+      const code = decodeURIComponent(path.slice("/invite/".length));
+      if (!code || code.length > 80) {
+        json(res, 400, { error: "invalid_invite" satisfies InviteErrorCode });
+        return;
+      }
+      const inv = await prisma.inviteCode.findUnique({
+        where: { code },
+        select: { usedAt: true }
+      });
+      if (!inv) {
+        json(res, 400, { error: "invalid_invite" satisfies InviteErrorCode });
+        return;
+      }
+      if (inv.usedAt) {
+        json(res, 400, { error: "invite_used" satisfies InviteErrorCode });
+        return;
+      }
+      json(res, 200, { ok: true });
+      return;
+    }
 
     // Feed history: public posts + private posts of the author.
     // Cursor is stable: (createdAt,id), ASC.
@@ -276,15 +361,52 @@ export function createHttpHandler(opts: {
         return;
       }
 
-      const { username, password } = parsed.data;
+      const { username, password, inviteCode } = parsed.data;
       const passwordHash = await bcrypt.hash(password, 10);
 
       try {
         const created = await prisma.$transaction(async (tx) => {
+          let inviteCodeClean: string | null = null;
+          if (inviteRequired) {
+            const code = (inviteCode ?? "").trim();
+            if (!code) {
+              const err: any = new Error("invalid_invite");
+              err._code = "invalid_invite";
+              throw err;
+            }
+            const inv = await tx.inviteCode.findUnique({
+              where: { code },
+              select: { usedAt: true }
+            });
+            if (!inv) {
+              const err: any = new Error("invalid_invite");
+              err._code = "invalid_invite";
+              throw err;
+            }
+            if (inv.usedAt) {
+              const err: any = new Error("invite_used");
+              err._code = "invite_used";
+              throw err;
+            }
+            inviteCodeClean = code;
+          }
+
           const user = await tx.user.create({
             data: { username, passwordHash, displayName: username },
             select: { id: true, username: true, displayName: true, avatarUrl: true }
           });
+
+          if (inviteRequired) {
+            const res = await tx.inviteCode.updateMany({
+              where: { code: inviteCodeClean!, usedAt: null },
+              data: { usedByUserId: user.id, usedAt: new Date() }
+            });
+            if (res.count !== 1) {
+              const err: any = new Error("invite_used");
+              err._code = "invite_used";
+              throw err;
+            }
+          }
 
           // MVP default chat membership so messaging works without extra endpoints.
           await tx.chat.upsert({
@@ -318,6 +440,14 @@ export function createHttpHandler(opts: {
         json(res, 200, { token, user: created });
         return;
       } catch (e: any) {
+        if (e?._code === "invalid_invite") {
+          json(res, 400, { error: "invalid_invite" satisfies InviteErrorCode });
+          return;
+        }
+        if (e?._code === "invite_used") {
+          json(res, 400, { error: "invite_used" satisfies InviteErrorCode });
+          return;
+        }
         if (e?.code === "P2002") {
           json(res, 409, { error: "username_taken" satisfies AuthErrorCode });
           return;

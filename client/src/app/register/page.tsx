@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
-import { loadToken, register, saveCachedMe, saveToken } from "../../lib/auth";
+import { getAuthConfig, loadToken, register, saveCachedMe, saveToken } from "../../lib/auth";
 import { isOnboarded } from "../../lib/onboarding";
 
 export default function RegisterPage() {
@@ -11,6 +11,8 @@ export default function RegisterPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
+  const [inviteRequired, setInviteRequired] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,11 +21,33 @@ export default function RegisterPage() {
     router.replace("/");
   }, [router]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cfg = await getAuthConfig({ apiBase });
+        if (cancelled) return;
+        setInviteRequired(cfg.inviteRequired);
+      } catch {
+        // Default: don't show invite field if server doesn't expose config.
+        if (!cancelled) setInviteRequired(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
     try {
-      const resp = await register({ apiBase, username: username.trim(), password });
+      const resp = await register({
+        apiBase,
+        username: username.trim(),
+        password,
+        ...(inviteRequired ? { inviteCode: inviteCode.trim() } : {})
+      });
       saveToken(resp.token);
       saveCachedMe(resp.user);
       if (!isOnboarded(resp.user.id)) router.replace("/onboarding");
@@ -54,6 +78,15 @@ export default function RegisterPage() {
           type="password"
           style={{ padding: 10, border: "1px solid #ddd" }}
         />
+        {inviteRequired ? (
+          <input
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            placeholder="invite code"
+            autoComplete="off"
+            style={{ padding: 10, border: "1px solid #ddd" }}
+          />
+        ) : null}
         <button type="submit" style={{ padding: "10px 12px" }}>
           Register
         </button>

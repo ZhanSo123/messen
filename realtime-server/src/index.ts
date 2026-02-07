@@ -23,6 +23,7 @@ const httpServer = createServer(
     prisma,
     jwtSecret: config.jwtSecret,
     corsOrigin: config.corsOrigin,
+    inviteRequired: config.inviteRequired,
     authLimiter
   })
 );
