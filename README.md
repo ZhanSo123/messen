@@ -56,6 +56,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f --tail=200 postgres realtime-server client
 ```
 
+If you open the client via `http://127.0.0.1:3000`, ensure `CORS_ORIGIN` includes `http://127.0.0.1:3000` (or use `*` behind a trusted proxy).
+
 Migrations (one-off):
 
 ```bash

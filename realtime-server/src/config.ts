@@ -5,9 +5,19 @@ export function getEnv(name: string, fallback?: string): string {
   throw new Error(`Missing env: ${name}`);
 }
 
+function parseOrigins(raw: string | undefined, fallback: string): string[] {
+  const s = (raw ?? fallback).trim();
+  if (!s) return [fallback];
+  // Allow comma-separated list for local/prod flexibility.
+  return s
+    .split(",")
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+}
+
 export const config = {
   port: Number(process.env.PORT ?? "4001"),
-  corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
+  corsOrigins: parseOrigins(process.env.CORS_ORIGIN, "http://localhost:3000"),
   jwtSecret: getEnv("JWT_SECRET", "dev_secret_change_me"),
   inviteRequired: (process.env.INVITE_REQUIRED ?? "false").toLowerCase() === "true",
   adminUserId: process.env.ADMIN_USER_ID ?? ""

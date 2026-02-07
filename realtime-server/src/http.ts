@@ -49,11 +49,15 @@ function json(res: ServerResponse, status: number, body: any, extraHeaders?: Rec
   res.end(JSON.stringify(body));
 }
 
-function setCors(res: ServerResponse, corsOrigin: string) {
-  res.setHeader("access-control-allow-origin", corsOrigin);
+function setCors(req: IncomingMessage, res: ServerResponse, corsOrigins: string[]) {
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
+  const any = corsOrigins.includes("*");
+  const allow = any ? (origin || "*") : (corsOrigins.includes(origin) ? origin : corsOrigins[0] ?? "");
+  if (allow) res.setHeader("access-control-allow-origin", allow);
   res.setHeader("access-control-allow-credentials", "true");
   res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
   res.setHeader("access-control-allow-headers", "content-type,authorization");
+  res.setHeader("vary", "Origin");
 }
 
 function getIp(req: IncomingMessage): string {
@@ -113,7 +117,7 @@ async function readJson(req: IncomingMessage, maxBytes: number): Promise<any | n
 export function createHttpHandler(opts: {
   prisma: PrismaClient;
   jwtSecret: string;
-  corsOrigin: string;
+  corsOrigins: string[];
   authLimiter: TokenBucketRateLimiter;
   inviteRequired: boolean;
   adminUserId: string;
@@ -121,7 +125,17 @@ export function createHttpHandler(opts: {
   invitePublicLimiter: TokenBucketRateLimiter;
   metricsLimiter: TokenBucketRateLimiter;
 }) {
-  const { prisma, jwtSecret, corsOrigin, authLimiter, inviteRequired, adminUserId, publicLimiter, invitePublicLimiter, metricsLimiter } =
+  const {
+    prisma,
+    jwtSecret,
+    corsOrigins,
+    authLimiter,
+    inviteRequired,
+    adminUserId,
+    publicLimiter,
+    invitePublicLimiter,
+    metricsLimiter
+  } = opts;
     opts;
 
   function requireAuth(req: IncomingMessage): { ok: true; userId: string } | { ok: false } {
@@ -146,7 +160,7 @@ export function createHttpHandler(opts: {
   }
 
   return async function handler(req: IncomingMessage, res: ServerResponse) {
-    setCors(res, corsOrigin);
+    setCors(req, res, corsOrigins);
 
     if (req.method === "OPTIONS") {
       res.statusCode = 204;

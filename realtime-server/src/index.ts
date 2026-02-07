@@ -40,7 +40,7 @@ const httpServer = createServer(
   createHttpHandler({
     prisma,
     jwtSecret: config.jwtSecret,
-    corsOrigin: config.corsOrigin,
+    corsOrigins: config.corsOrigins,
     inviteRequired: config.inviteRequired,
     adminUserId: config.adminUserId,
     publicLimiter,
@@ -52,7 +52,7 @@ const httpServer = createServer(
 
 const io = new Server(httpServer, {
   cors: {
-    origin: config.corsOrigin,
+    origin: config.corsOrigins,
     credentials: true
   }
 });
