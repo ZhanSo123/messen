@@ -298,6 +298,19 @@ export function createHttpHandler(opts: {
             create: { chatId: DEFAULT_CHAT_ID, userId: user.id }
           });
 
+          // Demo: first-run private thought (visible only to the author).
+          await tx.post.create({
+            data: {
+              authorId: user.id,
+              tempId: "onboarding_1",
+              visibility: "PRIVATE",
+              clientTs: BigInt(Date.now()),
+              text:
+                "Welcome. This is a PRIVATE post only you can see.\n\nTry:\n- Create a PRIVATE thought\n- Toggle Silent Mode\n- Pin a chat in Focus\n\nYou can delete this later."
+            },
+            select: { id: true }
+          });
+
           return user;
         });
 

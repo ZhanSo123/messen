@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { loadCachedMe, loadToken, login, saveCachedMe, saveToken } from "../../lib/auth";
+import { isOnboarded } from "../../lib/onboarding";
 
 export default function LoginPage() {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
@@ -14,7 +15,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     const token = loadToken();
-    if (token) router.replace("/");
+    if (!token) return;
+    const me = loadCachedMe();
+    if (me && !isOnboarded(me.id)) router.replace("/onboarding");
+    else router.replace("/");
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -24,7 +28,8 @@ export default function LoginPage() {
       const resp = await login({ apiBase, username: username.trim(), password });
       saveToken(resp.token);
       saveCachedMe(resp.user);
-      router.replace("/");
+      if (!isOnboarded(resp.user.id)) router.replace("/onboarding");
+      else router.replace("/");
     } catch (e: any) {
       setErr(String(e?.message ?? "login_failed"));
     }
@@ -72,4 +77,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

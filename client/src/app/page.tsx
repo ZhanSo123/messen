@@ -7,6 +7,7 @@ import { loadSettings, saveSettings, toggleChatInFocus, type UserSettings } from
 import { loadRecentChats, saveRecentChats } from "../lib/recentChats";
 import { PostFeed } from "../components/PostFeed";
 import { clearCachedMe, clearToken, getMe, loadCachedMe, loadToken, saveCachedMe } from "../lib/auth";
+import { isOnboarded } from "../lib/onboarding";
 
 export default function HomePage() {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
@@ -54,6 +55,11 @@ export default function HomePage() {
     setSettings(loadSettings(meId));
     setRecent(loadRecentChats(meId));
   }, [meId]);
+
+  useEffect(() => {
+    if (!meId) return;
+    if (!isOnboarded(meId)) router.replace("/onboarding");
+  }, [meId, router]);
 
   useEffect(() => {
     if (!meId) return;
@@ -107,6 +113,7 @@ export default function HomePage() {
   }
 
   if (!token || !meId || !settings) return null;
+  if (!isOnboarded(meId)) return null;
 
   return (
     <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 14 }}>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { loadToken, register, saveCachedMe, saveToken } from "../../lib/auth";
+import { isOnboarded } from "../../lib/onboarding";
 
 export default function RegisterPage() {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
@@ -14,7 +15,8 @@ export default function RegisterPage() {
 
   useEffect(() => {
     const token = loadToken();
-    if (token) router.replace("/");
+    if (!token) return;
+    router.replace("/");
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -24,7 +26,8 @@ export default function RegisterPage() {
       const resp = await register({ apiBase, username: username.trim(), password });
       saveToken(resp.token);
       saveCachedMe(resp.user);
-      router.replace("/");
+      if (!isOnboarded(resp.user.id)) router.replace("/onboarding");
+      else router.replace("/");
     } catch (e: any) {
       setErr(String(e?.message ?? "register_failed"));
     }

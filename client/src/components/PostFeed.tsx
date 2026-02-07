@@ -257,6 +257,15 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
         <div style={{ opacity: 0.7, fontSize: 12 }}>No likes. Just reactions.</div>
       </div>
 
+      {sorted.length === 0 ? (
+        <div style={{ border: "1px solid #eee", padding: 10, opacity: 0.9 }}>
+          <div style={{ fontWeight: 650, marginBottom: 4 }}>Helper</div>
+          <div style={{ opacity: 0.8, fontSize: 12 }}>
+            Write a thought. Use <span style={{ fontWeight: 650 }}>PRIVATE</span> for yourself, or <span style={{ fontWeight: 650 }}>PUBLIC</span> to share.
+          </div>
+        </div>
+      ) : null}
+
       <div style={{ display: "flex", gap: 8 }}>
         <button
           onClick={() => setVisibility((v) => (v === "PUBLIC" ? "PRIVATE" : "PUBLIC"))}

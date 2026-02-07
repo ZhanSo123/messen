@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { ChatView } from "../../../components/ChatView";
 import { clearCachedMe, clearToken, getMe, loadCachedMe, loadToken, saveCachedMe } from "../../../lib/auth";
+import { isOnboarded } from "../../../lib/onboarding";
 
 export default function ChatPage(props: { params: { chatId: string } }) {
   const apiBase = process.env.NEXT_PUBLIC_REALTIME_URL ?? "http://localhost:4001";
@@ -41,7 +42,13 @@ export default function ChatPage(props: { params: { chatId: string } }) {
     };
   }, [apiBase, token, router]);
 
+  useEffect(() => {
+    if (!me) return;
+    if (!isOnboarded(me.id)) router.replace("/onboarding");
+  }, [me, router]);
+
   const chatId = decodeURIComponent(props.params.chatId);
   if (!token || !me) return null;
+  if (!isOnboarded(me.id)) return null;
   return <ChatView chatId={chatId} token={token} meId={me.id} realtimeUrl={apiBase} />;
 }
