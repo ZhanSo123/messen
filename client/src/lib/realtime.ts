@@ -29,6 +29,7 @@ export type RealtimeClient = {
   joinChat: (chatId: string) => Promise<boolean>;
   setActiveChat: (chatId: string | null) => void;
   syncChat: (chatId: string) => void;
+  primeChatHistory: (items: MsgBroadcast[]) => void;
   sendMessage: (chatId: string, text: string) => { tempId: string; clientTs: number };
   syncReactions: (chatId: string) => void; // message reactions
   syncPostReactions: () => void;
@@ -38,6 +39,7 @@ export type RealtimeClient = {
   removePostReaction: (postId: string, emoji: string, tempId?: string) => void;
   setFeedActive: (active: boolean) => void;
   syncPosts: () => void;
+  primeFeedHistory: (items: PostBroadcast[]) => void;
   createPost: (text: string, visibility: PostVisibility) => { tempId: string; clientTs: number };
   queueSize: () => number;
   close: () => void;
@@ -52,6 +54,7 @@ function makeTempId(): string {
 export function createRealtimeClient(opts: {
   url: string;
   token: string;
+  autoConnect?: boolean;
   onAck: (ack: MsgAck) => void;
   onBroadcast: (msg: MsgBroadcast) => void;
   onPostAck?: (ack: PostAck) => void;
@@ -78,7 +81,7 @@ export function createRealtimeClient(opts: {
   const socket = io(opts.url, {
     transports: ["websocket"],
     auth: { token },
-    autoConnect: true,
+    autoConnect: opts.autoConnect ?? true,
     reconnection: true
   });
 
@@ -364,6 +367,22 @@ export function createRealtimeClient(opts: {
     }
   }
 
+  function primeChatHistory(items: MsgBroadcast[]) {
+    for (const it of items) {
+      if (!it?.msgId) continue;
+      seenIds.add(kMsg(it.msgId));
+      observeCursor(it.chatId, it.serverTs, it.msgId);
+    }
+  }
+
+  function primeFeedHistory(items: PostBroadcast[]) {
+    for (const it of items) {
+      if (!it?.postId) continue;
+      seenIds.add(kPost(it.postId));
+      observeCursor(FEED_KEY, it.serverTs, it.postId);
+    }
+  }
+
   async function joinChat(chatId: string): Promise<boolean> {
     return await new Promise<boolean>((resolve) => {
       socket.emit("chat:join", { chatId }, (res: { ok: true } | { ok: false } | undefined) => {
@@ -458,6 +477,7 @@ export function createRealtimeClient(opts: {
     joinChat,
     setActiveChat,
     syncChat,
+    primeChatHistory,
     sendMessage,
     syncReactions,
     syncPostReactions,
@@ -467,6 +487,7 @@ export function createRealtimeClient(opts: {
     removePostReaction,
     setFeedActive,
     syncPosts,
+    primeFeedHistory,
     createPost,
     queueSize: () => queue.size() + postQueue.size(),
     close: () => {

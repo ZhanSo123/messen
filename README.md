@@ -62,3 +62,8 @@ npm run dev
 - private posts: user A создаёт PRIVATE пост -> user B не видит его ни через `post:broadcast`, ни через `post:sync`.
 - private posts (author): user A создаёт PRIVATE пост -> user A видит его, пометка `Private` в UI, реакции работают только для автора.
 - private post reactions (privacy): user B пытается поставить реакцию на PRIVATE пост user A -> получает `msg:error { scope:\"feed\", reason:\"forbidden\" }`, и не получает ни `react:broadcast`, ни `react:sync` по этой реакции.
+
+## Cold Start (REST Read Model)
+
+- Открой `/` в новой вкладке: сначала подтягиваются посты через `GET /feed` и сразу отображаются; затем подключается сокет и выполняется sync для догонки.
+- Открой `/chat/chat_general`: сначала подтягиваются сообщения через `GET /chat/:chatId/messages`; затем сокет join + sync/reactions sync.

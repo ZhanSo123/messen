@@ -29,6 +29,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
   const [text, setText] = useState("");
   const [visibility, setVisibility] = useState<PostVisibility>("PUBLIC");
   const [posts, setPosts] = useState<UiPost[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
 
   const reactionsRef = useRef(new ReactionStore());
   const [reactionsRev, setReactionsRev] = useState(0);
@@ -42,6 +43,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
     return createRealtimeClient({
       url: realtimeUrl,
       token,
+      autoConnect: false,
       onAck: () => {},
       onBroadcast: () => {},
       onPostAck: (ack: PostAck) => {
@@ -116,12 +118,58 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
   }, [realtimeUrl, token, meId]);
 
   useEffect(() => {
+    let cancelled = false;
+    setHistoryReady(false);
+
+    void (async () => {
+      try {
+        const res = await fetch(`${realtimeUrl}/feed?limit=50`, {
+          method: "GET",
+          headers: { authorization: `Bearer ${token}` }
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        const items: PostBroadcast[] = Array.isArray(data?.items) ? data.items : [];
+
+        rt.primeFeedHistory(items);
+
+        setPosts((prev) => {
+          const next = [...prev];
+          for (const p of items) {
+            if (!p?.postId) continue;
+            if (next.some((x) => x.postId === p.postId)) continue;
+            next.push({
+              key: p.postId,
+              postId: p.postId,
+              authorId: p.authorId,
+              text: p.text,
+              visibility: p.visibility,
+              clientTs: p.serverTs,
+              serverTs: p.serverTs,
+              status: "sent"
+            });
+          }
+          return next;
+        });
+      } finally {
+        if (!cancelled) setHistoryReady(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [rt, realtimeUrl, token]);
+
+  useEffect(() => {
+    if (!historyReady) return;
+    rt.socket.connect();
     rt.setFeedActive(true);
     return () => {
       rt.setFeedActive(false);
       rt.close();
     };
-  }, [rt]);
+  }, [rt, historyReady]);
 
   function onPost() {
     const trimmed = text.trim();

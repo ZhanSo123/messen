@@ -7,6 +7,8 @@ import { signJwt, verifyJwt } from "./authJwt.js";
 import bcrypt from "bcryptjs";
 
 const DEFAULT_CHAT_ID = "chat_general";
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
 
 const UsernameSchema = z
   .string()
@@ -51,6 +53,26 @@ function getIp(req: IncomingMessage): string {
   return addr.length > 0 ? addr : "unknown";
 }
 
+function toInt(v: string | null): number | null {
+  if (v === null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function clampLimit(v: number | null): number {
+  const raw = v ?? DEFAULT_LIMIT;
+  if (raw < 1) return 1;
+  if (raw > MAX_LIMIT) return MAX_LIMIT;
+  return raw;
+}
+
+function parseCursor(sp: URLSearchParams): { afterTs: number | null; afterId: string | null; limit: number } {
+  const afterTs = toInt(sp.get("afterTs"));
+  const afterId = sp.get("afterId");
+  const limit = clampLimit(toInt(sp.get("limit")));
+  return { afterTs: afterTs !== null && afterTs >= 0 ? afterTs : null, afterId: afterId ? afterId : null, limit };
+}
+
 async function readJson(req: IncomingMessage, maxBytes: number): Promise<any | null> {
   return await new Promise((resolve) => {
     let total = 0;
@@ -86,6 +108,17 @@ export function createHttpHandler(opts: {
 }) {
   const { prisma, jwtSecret, corsOrigin, authLimiter } = opts;
 
+  function requireAuth(req: IncomingMessage): { ok: true; userId: string } | { ok: false } {
+    const token = extractBearer(req.headers.authorization) ?? extractBearer(req.headers.Authorization);
+    if (!token) return { ok: false };
+    try {
+      const { userId } = verifyJwt(token, jwtSecret);
+      return { ok: true, userId };
+    } catch {
+      return { ok: false };
+    }
+  }
+
   return async function handler(req: IncomingMessage, res: ServerResponse) {
     setCors(res, corsOrigin);
 
@@ -97,6 +130,137 @@ export function createHttpHandler(opts: {
 
     const url = new URL(req.url ?? "/", "http://localhost");
     const path = url.pathname;
+
+    // Feed history: public posts + private posts of the author.
+    // Cursor is stable: (createdAt,id), ASC.
+    if (path === "/feed" && req.method === "GET") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+
+      const { afterTs, afterId, limit } = parseCursor(url.searchParams);
+      const userId = auth.userId;
+
+      const baseWhere = {
+        OR: [{ visibility: "PUBLIC" as const }, { visibility: "PRIVATE" as const, authorId: userId }]
+      };
+
+      try {
+        let rows: Array<{ id: string; authorId: string; text: string; createdAt: Date; visibility: "PUBLIC" | "PRIVATE" }> = [];
+
+        if (afterTs === null) {
+          // Tail mode for cold start: newest N, returned ASC.
+          rows = await prisma.post.findMany({
+            where: baseWhere as any,
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+            take: limit,
+            select: { id: true, authorId: true, text: true, createdAt: true, visibility: true }
+          });
+          rows.reverse();
+        } else {
+          const cursorTs = new Date(afterTs);
+          const cursorWhere = afterId
+            ? {
+                OR: [{ createdAt: { gt: cursorTs } }, { AND: [{ createdAt: cursorTs }, { id: { gt: afterId } }] }]
+              }
+            : { createdAt: { gt: cursorTs } };
+
+          rows = await prisma.post.findMany({
+            where: { AND: [baseWhere as any, cursorWhere as any] } as any,
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            take: limit,
+            select: { id: true, authorId: true, text: true, createdAt: true, visibility: true }
+          });
+        }
+
+        json(res, 200, {
+          items: rows.map((p) => ({
+            postId: p.id,
+            authorId: p.authorId,
+            text: p.text,
+            serverTs: p.createdAt.getTime(),
+            visibility: p.visibility
+          }))
+        });
+        return;
+      } catch {
+        json(res, 500, { error: "server_error" });
+        return;
+      }
+    }
+
+    // Chat message history for cold start.
+    // Cursor is stable: (serverTs,id), ASC.
+    if (path.startsWith("/chat/") && path.endsWith("/messages") && req.method === "GET") {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
+        json(res, 401, { error: "invalid_credentials" });
+        return;
+      }
+
+      const parts = path.split("/").filter(Boolean); // ["chat", ":chatId", "messages"]
+      const chatId = parts.length === 3 && parts[0] === "chat" && parts[2] === "messages" ? decodeURIComponent(parts[1]!) : null;
+      if (!chatId) {
+        json(res, 400, { error: "invalid_payload" });
+        return;
+      }
+
+      const userId = auth.userId;
+      const member = await prisma.chatMember.findUnique({
+        where: { chatId_userId: { chatId, userId } },
+        select: { id: true }
+      });
+      if (!member) {
+        json(res, 403, { error: "forbidden" });
+        return;
+      }
+
+      const { afterTs, afterId, limit } = parseCursor(url.searchParams);
+
+      try {
+        let rows: Array<{ id: string; chatId: string; fromId: string; text: string; serverTs: Date }> = [];
+
+        if (afterTs === null) {
+          rows = await prisma.message.findMany({
+            where: { chatId },
+            orderBy: [{ serverTs: "desc" }, { id: "desc" }],
+            take: limit,
+            select: { id: true, chatId: true, fromId: true, text: true, serverTs: true }
+          });
+          rows.reverse();
+        } else {
+          const cursorTs = new Date(afterTs);
+          const cursorWhere = afterId
+            ? {
+                OR: [{ serverTs: { gt: cursorTs } }, { AND: [{ serverTs: cursorTs }, { id: { gt: afterId } }] }]
+              }
+            : { serverTs: { gt: cursorTs } };
+
+          rows = await prisma.message.findMany({
+            where: { AND: [{ chatId }, cursorWhere as any] } as any,
+            orderBy: [{ serverTs: "asc" }, { id: "asc" }],
+            take: limit,
+            select: { id: true, chatId: true, fromId: true, text: true, serverTs: true }
+          });
+        }
+
+        json(res, 200, {
+          items: rows.map((m) => ({
+            msgId: m.id,
+            chatId: m.chatId,
+            from: m.fromId,
+            text: m.text,
+            serverTs: m.serverTs.getTime()
+          }))
+        });
+        return;
+      } catch {
+        json(res, 500, { error: "server_error" });
+        return;
+      }
+    }
 
     if (path === "/auth/register" && req.method === "POST") {
       const ip = getIp(req);
@@ -187,28 +351,21 @@ export function createHttpHandler(opts: {
     }
 
     if (path === "/me" && req.method === "GET") {
-      const token = extractBearer(req.headers.authorization) ?? extractBearer(req.headers.Authorization);
-      if (!token) {
+      const auth = requireAuth(req);
+      if (!auth.ok) {
         json(res, 401, { error: "invalid_credentials" satisfies AuthErrorCode });
         return;
       }
-
-      try {
-        const { userId } = verifyJwt(token, jwtSecret);
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { id: true, username: true, displayName: true, avatarUrl: true }
-        });
-        if (!user) {
-          json(res, 401, { error: "invalid_credentials" satisfies AuthErrorCode });
-          return;
-        }
-        json(res, 200, { user });
-        return;
-      } catch {
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { id: true, username: true, displayName: true, avatarUrl: true }
+      });
+      if (!user) {
         json(res, 401, { error: "invalid_credentials" satisfies AuthErrorCode });
         return;
       }
+      json(res, 200, { user });
+      return;
     }
 
     json(res, 404, { error: "not_found" });

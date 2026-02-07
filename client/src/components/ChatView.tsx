@@ -24,6 +24,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
   const { chatId, token, meId, realtimeUrl } = props;
   const [text, setText] = useState("");
   const [msgs, setMsgs] = useState<UiMsg[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
   const reactionsRef = useRef(new ReactionStore());
   const [reactionsRev, setReactionsRev] = useState(0);
   const bumpReactions = () => setReactionsRev((x) => x + 1);
@@ -41,6 +42,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
     return createRealtimeClient({
       url: realtimeUrl,
       token,
+      autoConnect: false,
       onAck: (ack: MsgAck) => {
         setMsgs((prev) => {
           // If broadcast landed before ack, prefer the broadcast row and just drop pending.
@@ -139,19 +141,66 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
 
   useEffect(() => {
     let cancelled = false;
-    void rt.joinChat(chatId).then(() => {
-      if (cancelled) return;
-      rt.setActiveChat(chatId);
-      rt.syncChat(chatId);
-      rt.syncReactions(chatId);
-    });
+    setHistoryReady(false);
+
+    void (async () => {
+      try {
+        const res = await fetch(`${realtimeUrl}/chat/${encodeURIComponent(chatId)}/messages?limit=50`, {
+          method: "GET",
+          headers: { authorization: `Bearer ${token}` }
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        const items: MsgBroadcast[] = Array.isArray(data?.items) ? data.items : [];
+
+        // Prime bounded dedup + cursor so sync/broadcast don't churn.
+        rt.primeChatHistory(items);
+
+        setMsgs((prev) => {
+          const next = [...prev];
+          for (const m of items) {
+            if (!m?.msgId) continue;
+            if (next.some((x) => x.msgId === m.msgId)) continue;
+            next.push({
+              key: m.msgId,
+              msgId: m.msgId,
+              chatId: m.chatId,
+              text: m.text,
+              from: m.from,
+              clientTs: m.serverTs,
+              serverTs: m.serverTs,
+              status: "sent"
+            });
+          }
+          return next;
+        });
+      } finally {
+        if (!cancelled) setHistoryReady(true);
+      }
+    })();
+
     pushRecentChat(meId, chatId);
     return () => {
       cancelled = true;
       rt.setActiveChat(null);
       rt.close();
     };
-  }, [rt, chatId]);
+  }, [rt, chatId, realtimeUrl, token, meId]);
+
+  useEffect(() => {
+    if (!historyReady) return;
+    rt.socket.connect();
+    let cancelled = false;
+    void rt.joinChat(chatId).then(() => {
+      if (cancelled) return;
+      rt.setActiveChat(chatId);
+      rt.syncChat(chatId);
+      rt.syncReactions(chatId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [historyReady, rt, chatId]);
 
   function onSend() {
     const trimmed = text.trim();
