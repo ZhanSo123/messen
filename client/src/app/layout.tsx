@@ -7,7 +7,9 @@ export default function RootLayout(props: { children: React.ReactNode }) {
     <html lang="en">
       <body>
         <div className="nm-page">
-          <AppShell>{props.children}</AppShell>
+          <div className="nm-content">
+            <AppShell>{props.children}</AppShell>
+          </div>
         </div>
       </body>
     </html>

@@ -233,192 +233,228 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
 
   if (restStatus === "forbidden") {
     return (
-      <div style={{ border: "1px solid #ddd", padding: 12 }}>
-        <div style={{ fontWeight: 700 }}>No access</div>
+      <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+        <div style={{ fontWeight: 750, fontSize: 16 }}>No access</div>
+        <div className="nm-muted" style={{ fontSize: 13 }}>
+          You are not allowed to view the feed.
+        </div>
       </div>
     );
   }
 
   if (restStatus === "unavailable") {
     return (
-      <div style={{ border: "1px solid #ddd", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontWeight: 700 }}>Server unavailable</div>
-        <button onClick={() => setRestRetry((x) => x + 1)} style={{ padding: "10px 14px", width: "fit-content" }}>
+      <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+        <div style={{ fontWeight: 750, fontSize: 16 }}>Server unavailable</div>
+        <div className="nm-muted" style={{ fontSize: 13 }}>
+          Check that the realtime server is running, then retry.
+        </div>
+        <button className="nm-btn nm-tap" onClick={() => setRestRetry((x) => x + 1)} style={{ width: "fit-content" }}>
           Retry
         </button>
       </div>
     );
   }
 
+  const showSkeletons = restStatus === "loading" && posts.length === 0;
+
   return (
-    <div style={{ border: "1px solid #ddd", padding: 12, display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ fontWeight: 800 }}>Posts</div>
-        <div style={{ opacity: 0.7, fontSize: 12 }}>No likes. Just reactions.</div>
+    <div className="nm-stack">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <div style={{ fontWeight: 800, fontSize: 18 }}>Posts</div>
+        <div className="nm-muted" style={{ fontSize: 12 }}>
+          No likes. Just reactions.
+        </div>
       </div>
 
-      {sorted.length === 0 ? (
-        <div style={{ border: "1px solid #eee", padding: 10, opacity: 0.9 }}>
-          <div style={{ fontWeight: 650, marginBottom: 4 }}>Helper</div>
-          <div style={{ opacity: 0.8, fontSize: 12 }}>
-            Write a thought. Use <span style={{ fontWeight: 650 }}>PRIVATE</span> for yourself, or <span style={{ fontWeight: 650 }}>PUBLIC</span> to share.
+      <div className="tg-post">
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            className={`nm-pill nm-tap${visibility === "PUBLIC" ? " is-active" : ""}`}
+            onClick={() => setVisibility("PUBLIC")}
+            type="button"
+            aria-label="Set Public"
+          >
+            Public
+          </button>
+          <button
+            className={`nm-pill nm-tap${visibility === "PRIVATE" ? " is-active" : ""}`}
+            onClick={() => setVisibility("PRIVATE")}
+            type="button"
+            aria-label="Set Private"
+          >
+            Private
+          </button>
+          <div className="nm-muted" style={{ fontSize: 12 }}>
+            Quiet thoughts, minimal noise.
+          </div>
+          <div style={{ flex: 1 }} />
+          <button className="nm-icon-btn nm-tap" onClick={onPost} aria-label="Post" type="button" disabled={!text.trim()}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3.5 11.5 21 3.8l-7.7 17.7-2.7-7-7.1-3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              <path d="M10.6 14.5 21 3.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <input
+            className="nm-input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onPost();
+            }}
+            placeholder="Write a post…"
+            aria-label="Post text"
+          />
+        </div>
+      </div>
+
+      {restStatus === "ok" && sorted.length === 0 ? (
+        <div className="tg-post">
+          <div style={{ fontWeight: 750, marginBottom: 6 }}>Helper</div>
+          <div className="nm-muted" style={{ fontSize: 13 }}>
+            Write a thought. Use <span style={{ color: "rgba(246,242,235,0.9)", fontWeight: 700 }}>Private</span> for yourself, or{" "}
+            <span style={{ color: "rgba(246,242,235,0.9)", fontWeight: 700 }}>Public</span> to share.
           </div>
         </div>
       ) : null}
 
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          onClick={() => setVisibility((v) => (v === "PUBLIC" ? "PRIVATE" : "PUBLIC"))}
-          style={{
-            padding: "10px 12px",
-            border: "1px solid #ddd",
-            background: visibility === "PRIVATE" ? "#111" : "#fff",
-            color: visibility === "PRIVATE" ? "#fff" : "#111"
-          }}
-        >
-          {visibility}
-        </button>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onPost();
-          }}
-          placeholder="A thought"
-          style={{ flex: 1, padding: 10, border: "1px solid #ddd" }}
-        />
-        <button onClick={onPost} style={{ padding: "10px 14px" }}>
-          Post
-        </button>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {sorted.map((p) => {
-          void reactionsRev;
-          const emojis = p.postId ? reactionsRef.current.listEmojis(p.postId) : [];
-          const isOpen = p.postId ? openReactions.has(p.postId) : false;
-
-          return (
-            <div
-              key={p.key}
-              style={{
-                border: "1px solid #eee",
-                padding: 10,
-                opacity: p.status === "pending" ? 0.65 : 1,
-                color: p.status === "failed" ? "#b00020" : "inherit"
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-                  <div style={{ fontWeight: 650 }}>{p.authorId}</div>
-                  {p.visibility === "PRIVATE" ? <div style={{ opacity: 0.8, fontSize: 12 }}>Private</div> : null}
+      <div className="nm-stack" style={{ gap: 10 }}>
+        {showSkeletons
+          ? Array.from({ length: 7 }).map((_, i) => (
+              <div key={`sk_${i}`} className="tg-post">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                  <div className="nm-skeleton" style={{ height: 12, width: 92, borderRadius: 999 }} />
+                  <div className="nm-skeleton" style={{ height: 10, width: 56, borderRadius: 999, opacity: 0.8 }} />
                 </div>
-                {p.status === "pending" ? <div style={{ opacity: 0.7, fontSize: 12 }}>(posting)</div> : null}
-                {p.status === "failed" ? (
-                  <div style={{ opacity: 0.9, fontSize: 12 }}>(failed: {p.failReason ?? "unknown"})</div>
-                ) : null}
+                <div className="nm-skeleton" style={{ height: 14, width: `${72 + (i % 3) * 8}%`, marginTop: 10 }} />
+                <div className="nm-skeleton" style={{ height: 14, width: `${46 + (i % 4) * 10}%`, marginTop: 8, opacity: 0.75 }} />
+                <div className="nm-skeleton" style={{ height: 14, width: `${62 + (i % 5) * 6}%`, marginTop: 8, opacity: 0.7 }} />
               </div>
-              <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>{p.text}</div>
+            ))
+          : sorted.map((p) => {
+              void reactionsRev;
+              const isMine = p.authorId === meId;
+              const emojis = p.postId ? reactionsRef.current.listEmojis(p.postId) : [];
+              const isOpen = p.postId ? openReactions.has(p.postId) : false;
+              const expanded = !silentMode || isOpen;
 
-              {p.postId ? (
-                <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                  {silentMode && !isOpen ? (
-                    <button
-                      onClick={() =>
-                        setOpenReactions((prev) => {
-                          const next = new Set(prev);
-                          next.add(p.postId!);
-                          return next;
-                        })
-                      }
-                      style={{
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        borderRadius: 999,
-                        padding: "4px 10px",
-                        lineHeight: "16px",
-                        cursor: "pointer",
-                        opacity: 0.9
-                      }}
-                    >
-                      Show reactions{emojis.length > 0 ? " \u00b7" : ""}
-                    </button>
-                  ) : null}
+              return (
+                <div
+                  key={p.key}
+                  className="tg-post"
+                  style={{
+                    opacity: p.status === "pending" ? 0.72 : 1,
+                    borderColor: isMine ? "rgba(42, 171, 238, 0.22)" : undefined
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+                    <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                      <div style={{ fontWeight: 750 }}>{isMine ? "You" : p.authorId}</div>
+                      {p.visibility === "PRIVATE" ? (
+                        <div className="nm-muted" style={{ fontSize: 12 }}>
+                          Private
+                        </div>
+                      ) : null}
+                    </div>
+                    {p.status === "pending" ? (
+                      <div className="nm-muted" style={{ fontSize: 12 }}>
+                        posting…
+                      </div>
+                    ) : null}
+                    {p.status === "failed" ? (
+                      <div style={{ color: "var(--nm-danger)", fontSize: 12 }}>failed</div>
+                    ) : null}
+                  </div>
 
-                  {!silentMode || isOpen
-                    ? emojis.map((e) => {
-                        const mine = reactionsRef.current.hasMine(p.postId!, e, meId);
-                        return (
-                          <button
-                            key={e}
-                            onClick={() => toggleReaction(p.postId!, e)}
-                            style={{
-                              border: "1px solid #ddd",
-                              background: mine ? "#111" : "#fff",
-                              color: mine ? "#fff" : "#111",
-                              borderRadius: 999,
-                              padding: "4px 8px",
-                              lineHeight: "16px",
-                              cursor: "pointer"
-                            }}
-                            aria-label={`react ${e}`}
-                          >
-                            {e}
-                          </button>
-                        );
-                      })
-                    : null}
+                  <div className="nm-msg-text" style={{ marginTop: 10 }}>
+                    {p.text}
+                  </div>
 
-                  {!silentMode || isOpen ? (
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {quickEmojis.map((e) => (
-                        <button
-                          key={`q_${e}`}
-                          onClick={() => toggleReaction(p.postId!, e)}
-                          style={{
-                            border: "1px dashed #ddd",
-                            background: "#fff",
-                            borderRadius: 999,
-                            padding: "4px 8px",
-                            lineHeight: "16px",
-                            cursor: "pointer",
-                            opacity: 0.85
-                          }}
-                          aria-label={`quick react ${e}`}
-                        >
-                          {e}
-                        </button>
-                      ))}
+                  {p.status === "failed" ? (
+                    <div className="nm-muted" style={{ fontSize: 12, marginTop: 8 }}>
+                      {p.failReason ? `Reason: ${p.failReason}` : "Try again after reconnect."}
                     </div>
                   ) : null}
 
-                  {silentMode && isOpen ? (
-                    <button
-                      onClick={() =>
-                        setOpenReactions((prev) => {
-                          const next = new Set(prev);
-                          next.delete(p.postId!);
-                          return next;
-                        })
-                      }
-                      style={{
-                        border: "1px solid #ddd",
-                        background: "#fff",
-                        borderRadius: 999,
-                        padding: "4px 10px",
-                        lineHeight: "16px",
-                        cursor: "pointer",
-                        opacity: 0.7
-                      }}
-                    >
-                      Hide
-                    </button>
+                  {p.postId ? (
+                    <div className="nm-reactions-row">
+                      {silentMode && !isOpen ? (
+                        <button
+                          className="nm-pill nm-tap"
+                          onClick={() =>
+                            setOpenReactions((prev) => {
+                              const next = new Set(prev);
+                              next.add(p.postId!);
+                              return next;
+                            })
+                          }
+                          type="button"
+                          aria-label="Show reactions"
+                        >
+                          Show reactions{emojis.length > 0 ? " \u00b7" : ""}
+                        </button>
+                      ) : null}
+
+                      <div className={`nm-collapsible${expanded ? " is-open" : ""}`}>
+                        <div className="nm-reactions-row" style={{ marginTop: 0 }}>
+                          {emojis.map((e) => {
+                            const mine = reactionsRef.current.hasMine(p.postId!, e, meId);
+                            return (
+                              <button
+                                key={e}
+                                className={`nm-emoji-pill nm-tap${mine ? " is-mine" : ""}`}
+                                onClick={() => toggleReaction(p.postId!, e)}
+                                aria-label={`react ${e}`}
+                                type="button"
+                              >
+                                {e}
+                              </button>
+                            );
+                          })}
+
+                          {expanded ? (
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {quickEmojis.map((e) => (
+                                <button
+                                  key={`q_${e}`}
+                                  className="nm-emoji-pill nm-tap"
+                                  onClick={() => toggleReaction(p.postId!, e)}
+                                  aria-label={`quick react ${e}`}
+                                  type="button"
+                                  style={{ opacity: 0.92, borderStyle: "dashed" }}
+                                >
+                                  {e}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {silentMode && isOpen ? (
+                            <button
+                              className="nm-pill nm-tap"
+                              onClick={() =>
+                                setOpenReactions((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(p.postId!);
+                                  return next;
+                                })
+                              }
+                              type="button"
+                              aria-label="Hide reactions"
+                              style={{ opacity: 0.85 }}
+                            >
+                              Hide
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
+              );
+            })}
       </div>
     </div>
   );

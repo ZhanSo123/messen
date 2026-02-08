@@ -268,35 +268,56 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
 
   if (restStatus === "forbidden") {
     return (
-      <div style={{ maxWidth: 720 }}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>No access</div>
-        <div style={{ opacity: 0.75, fontSize: 12 }}>You are not a member of this chat.</div>
+      <div className="nm-content nm-fadeIn">
+        <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+          <div style={{ fontWeight: 750, fontSize: 16 }}>No access</div>
+          <div className="nm-muted" style={{ fontSize: 13 }}>
+            You are not a member of this chat.
+          </div>
+        </div>
       </div>
     );
   }
 
   if (restStatus === "unavailable") {
     return (
-      <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ fontWeight: 700 }}>Server unavailable</div>
-        <button onClick={() => setRestRetry((x) => x + 1)} style={{ padding: "10px 14px", width: "fit-content" }}>
-          Retry
-        </button>
+      <div className="nm-content nm-fadeIn">
+        <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+          <div style={{ fontWeight: 750, fontSize: 16 }}>Server unavailable</div>
+          <div className="nm-muted" style={{ fontSize: 13 }}>
+            Check that the realtime server is running, then retry.
+          </div>
+          <button className="nm-btn nm-tap" onClick={() => setRestRetry((x) => x + 1)} style={{ width: "fit-content" }}>
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
 
+  const showSkeletons = restStatus === "loading" && msgs.length === 0;
+
+  function fmtTime(ts: number | undefined): string | null {
+    if (!ts) return null;
+    try {
+      return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return null;
+    }
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 720 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <div style={{ fontWeight: 600 }}>Chat {chatId}</div>
-        <div style={{ opacity: 0.7, fontSize: 12 }}>
-          socket: {rt.socket.connected ? "online" : "offline"} | queue: {rt.queueSize()}
+    <div className="nm-content nm-chat nm-stack nm-fadeIn">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <div style={{ fontWeight: 750, fontSize: 18 }}>Chat {chatId}</div>
+        <div className="nm-muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+          {rt.socket.connected ? "online" : "offline"} · queue {rt.queueSize()}
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button
+          className={`nm-pill nm-tap${settings.silentMode ? " is-active" : ""}`}
           onClick={() =>
             setSettings((s) => {
               const next = { ...s, silentMode: !s.silentMode };
@@ -304,165 +325,179 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
               return next;
             })
           }
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #ddd",
-            background: settings.silentMode ? "#111" : "#fff",
-            color: settings.silentMode ? "#fff" : "#111"
-          }}
+          aria-label="Toggle Silent Mode"
+          type="button"
         >
-          Silent: {settings.silentMode ? "On" : "Off"}
+          Silent
         </button>
 
         <button
+          className={`nm-pill nm-tap${settings.focusChats.includes(chatId) ? " is-active" : ""}`}
           onClick={() => setSettings((s) => toggleChatInFocus(s, chatId))}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #ddd",
-            background: settings.focusChats.includes(chatId) ? "#111" : "#fff",
-            color: settings.focusChats.includes(chatId) ? "#fff" : "#111"
-          }}
+          aria-label="Toggle Focus Pin"
+          type="button"
         >
-          Focus: {settings.focusChats.includes(chatId) ? "Pinned" : "Pin"}
+          {settings.focusChats.includes(chatId) ? "Pinned" : "Pin"}
         </button>
 
-        <div style={{ opacity: 0.7, fontSize: 12 }}>Silent mode collapses reactions.</div>
+        <div className="nm-muted" style={{ fontSize: 12 }}>
+          Quiet reactions. No counters.
+        </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: 12, border: "1px solid #ddd" }}>
-        {sorted.map((m) => {
-          // Use `reactionsRev` to rerender when reactions change.
-          void reactionsRev;
-          const emojis = m.msgId ? reactionsRef.current.listEmojis(m.msgId) : [];
-          const isOpen = m.msgId ? openReactions.has(m.msgId) : false;
-          return (
-          <div
-            key={m.key}
-            style={{
-              opacity: m.status === "pending" ? 0.6 : 1,
-              color: m.status === "failed" ? "#b00020" : "inherit"
-            }}
-          >
-            <span style={{ fontWeight: 600 }}>{m.from}</span>
-            <span style={{ marginLeft: 8 }}>{m.text}</span>
-            {m.status === "pending" ? <span style={{ marginLeft: 8 }}>(sending)</span> : null}
-            {m.status === "failed" ? (
-              <span style={{ marginLeft: 8 }}>(failed: {m.failReason ?? "unknown"})</span>
-            ) : null}
-
-            {m.msgId ? (
-              <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
-                {settings.silentMode && !isOpen ? (
-                  <button
-                    onClick={() =>
-                      setOpenReactions((prev) => {
-                        const next = new Set(prev);
-                        next.add(m.msgId!);
-                        return next;
-                      })
-                    }
-                    style={{
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      borderRadius: 999,
-                      padding: "4px 10px",
-                      lineHeight: "16px",
-                      cursor: "pointer",
-                      opacity: 0.9
-                    }}
-                  >
-                    Show reactions{emojis.length > 0 ? " \u00b7" : ""}
-                  </button>
-                ) : null}
-
-                {!settings.silentMode || isOpen
-                  ? emojis.map((e) => {
-                      const mine = reactionsRef.current.hasMine(m.msgId!, e, meId);
-                      return (
-                        <button
-                          key={e}
-                          onClick={() => toggleReaction(m.msgId!, e)}
-                          style={{
-                            border: "1px solid #ddd",
-                            background: mine ? "#111" : "#fff",
-                            color: mine ? "#fff" : "#111",
-                            borderRadius: 999,
-                            padding: "4px 8px",
-                            lineHeight: "16px",
-                            cursor: "pointer"
-                          }}
-                          aria-label={`react ${e}`}
-                        >
-                          {e}
-                        </button>
-                      );
-                    })
-                  : null}
-
-                {!settings.silentMode || isOpen ? (
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {quickEmojis.map((e) => (
-                      <button
-                        key={`q_${e}`}
-                        onClick={() => toggleReaction(m.msgId!, e)}
-                        style={{
-                          border: "1px dashed #ddd",
-                          background: "#fff",
-                          borderRadius: 999,
-                          padding: "4px 8px",
-                          lineHeight: "16px",
-                          cursor: "pointer",
-                          opacity: 0.85
-                        }}
-                        aria-label={`quick react ${e}`}
-                      >
-                        {e}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-
-                {settings.silentMode && isOpen ? (
-                  <button
-                    onClick={() =>
-                      setOpenReactions((prev) => {
-                        const next = new Set(prev);
-                        next.delete(m.msgId!);
-                        return next;
-                      })
-                    }
-                    style={{
-                      border: "1px solid #ddd",
-                      background: "#fff",
-                      borderRadius: 999,
-                      padding: "4px 10px",
-                      lineHeight: "16px",
-                      cursor: "pointer",
-                      opacity: 0.7
-                    }}
-                  >
-                    Hide
-                  </button>
-                ) : null}
+      <div className="nm-chat-list">
+        {showSkeletons
+          ? Array.from({ length: 7 }).map((_, i) => (
+              <div key={`sk_${i}`} className="tg-msg-row">
+                <div className="nm-msg">
+                <div className="nm-msg-meta">
+                  <div className="nm-skeleton" style={{ height: 12, width: 88, borderRadius: 999 }} />
+                  <div className="nm-skeleton" style={{ height: 10, width: 56, borderRadius: 999, opacity: 0.8 }} />
+                </div>
+                <div className="nm-skeleton" style={{ height: 14, width: `${70 + (i % 3) * 10}%` }} />
+                <div className="nm-skeleton" style={{ height: 14, width: `${45 + (i % 4) * 9}%`, marginTop: 8, opacity: 0.75 }} />
+                </div>
               </div>
-            ) : null}
-          </div>
-        )})}
+            ))
+          : sorted.map((m) => {
+              // Use `reactionsRev` to rerender when reactions change.
+              void reactionsRev;
+              const isMine = m.from === meId;
+              const emojis = m.msgId ? reactionsRef.current.listEmojis(m.msgId) : [];
+              const isOpen = m.msgId ? openReactions.has(m.msgId) : false;
+              const expanded = !settings.silentMode || isOpen;
+              const ts = m.status === "sent" ? (m.serverTs ?? m.clientTs) : m.clientTs;
+              const time = fmtTime(ts);
+
+              return (
+                <div key={m.key} className={`tg-msg-row${isMine ? " is-mine" : ""}`}>
+                  <div
+                    className={`nm-msg${isMine ? " is-mine" : ""}${m.status === "pending" ? " is-pending" : ""}${
+                      m.status === "failed" ? " is-failed" : ""
+                    }`}
+                  >
+                  <div className="nm-msg-meta">
+                    <div className="nm-msg-from">{isMine ? "You" : m.from}</div>
+                    <div>
+                      {m.status === "pending" ? "sending…" : null}
+                      {m.status === "failed" ? <span style={{ color: "rgba(255,120,120,0.95)" }}>failed</span> : null}
+                      {m.status === "sent" && time ? <span className="nm-muted">{time}</span> : null}
+                    </div>
+                  </div>
+
+                  <div className="nm-msg-text">{m.text}</div>
+
+                  {m.status === "failed" ? (
+                    <div className="nm-muted" style={{ fontSize: 12, marginTop: 8 }}>
+                      {m.failReason ? `Reason: ${m.failReason}` : "Tap Send again after reconnect."}
+                    </div>
+                  ) : null}
+
+                  {m.msgId ? (
+                    <div className="nm-reactions-row">
+                      {settings.silentMode && !isOpen ? (
+                        <button
+                          className="nm-pill nm-tap"
+                          onClick={() =>
+                            setOpenReactions((prev) => {
+                              const next = new Set(prev);
+                              next.add(m.msgId!);
+                              return next;
+                            })
+                          }
+                          type="button"
+                          aria-label="Show reactions"
+                        >
+                          Show reactions{emojis.length > 0 ? " \u00b7" : ""}
+                        </button>
+                      ) : null}
+
+                      <div className={`nm-collapsible${expanded ? " is-open" : ""}`}>
+                        <div className="nm-reactions-row" style={{ marginTop: 0 }}>
+                          {emojis.map((e) => {
+                            const mine = reactionsRef.current.hasMine(m.msgId!, e, meId);
+                            return (
+                              <button
+                                key={e}
+                                className={`nm-emoji-pill nm-tap${mine ? " is-mine" : ""}`}
+                                onClick={() => toggleReaction(m.msgId!, e)}
+                                aria-label={`react ${e}`}
+                                type="button"
+                              >
+                                {e}
+                              </button>
+                            );
+                          })}
+
+                          {expanded ? (
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              {quickEmojis.map((e) => (
+                                <button
+                                  key={`q_${e}`}
+                                  className="nm-emoji-pill nm-tap"
+                                  onClick={() => toggleReaction(m.msgId!, e)}
+                                  aria-label={`quick react ${e}`}
+                                  type="button"
+                                  style={{ opacity: 0.92, borderStyle: "dashed" }}
+                                >
+                                  {e}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {settings.silentMode && isOpen ? (
+                            <button
+                              className="nm-pill nm-tap"
+                              onClick={() =>
+                                setOpenReactions((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(m.msgId!);
+                                  return next;
+                                })
+                              }
+                              type="button"
+                              aria-label="Hide reactions"
+                              style={{ opacity: 0.85 }}
+                            >
+                              Hide
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  </div>
+                </div>
+              );
+            })}
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSend();
-          }}
-          placeholder="Message"
-          style={{ flex: 1, padding: 10, border: "1px solid #ddd" }}
-        />
-        <button onClick={onSend} style={{ padding: "10px 14px" }}>
-          Send
-        </button>
+      <div className="nm-composer-wrap" aria-label="Message composer">
+        <div className="nm-composer">
+          <input
+            className="nm-input nm-composer-input"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSend();
+            }}
+            placeholder="Write quietly…"
+            aria-label="Message"
+          />
+          <button
+            className="nm-icon-btn nm-tap"
+            onClick={onSend}
+            disabled={!text.trim()}
+            aria-label="Send"
+            type="button"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M3.5 11.5 21 3.8l-7.7 17.7-2.7-7-7.1-3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              <path d="M10.6 14.5 21 3.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   );
