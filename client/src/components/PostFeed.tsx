@@ -34,6 +34,8 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
   const [posts, setPosts] = useState<UiPost[]>([]);
   const [restStatus, setRestStatus] = useState<"loading" | "ok" | "forbidden" | "unavailable">("loading");
   const [restRetry, setRestRetry] = useState(0);
+  const motionHydratedRef = useRef(false);
+  const motionSeenRef = useRef<Set<string>>(new Set());
 
   const reactionsRef = useRef(new ReactionStore());
   const [reactionsRev, setReactionsRev] = useState(0);
@@ -51,6 +53,8 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
       onAck: () => {},
       onBroadcast: () => {},
       onPostAck: (ack: PostAck) => {
+        // Prevent a second "new item" animation when tempId -> postId swaps keys.
+        motionSeenRef.current.add(ack.postId);
         setPosts((prev) => {
           if (prev.some((p) => p.postId === ack.postId)) return prev.filter((p) => p.tempId !== ack.tempId);
           return prev.map((p) => {
@@ -120,6 +124,24 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
       }
     });
   }, [realtimeUrl, token, meId]);
+
+  useEffect(() => {
+    if (restStatus !== "ok") return;
+    motionHydratedRef.current = true;
+    for (const p of posts) {
+      const id = p.postId ?? p.tempId ?? p.key;
+      motionSeenRef.current.add(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restStatus]);
+
+  useEffect(() => {
+    if (!motionHydratedRef.current) return;
+    for (const p of posts) {
+      const id = p.postId ?? p.tempId ?? p.key;
+      motionSeenRef.current.add(id);
+    }
+  }, [posts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -249,7 +271,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
         <div className="nm-muted" style={{ fontSize: 13 }}>
           Check that the realtime server is running, then retry.
         </div>
-        <button className="nm-btn nm-tap" onClick={() => setRestRetry((x) => x + 1)} style={{ width: "fit-content" }}>
+        <button className="nm-btn nm-tap m-press" onClick={() => setRestRetry((x) => x + 1)} style={{ width: "fit-content" }}>
           Retry
         </button>
       </div>
@@ -267,10 +289,10 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
         </div>
       </div>
 
-      <div className="tg-post">
+      <div className="tg-post q-compose">
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
-            className={`nm-pill nm-tap${visibility === "PUBLIC" ? " is-active" : ""}`}
+            className={`nm-pill nm-tap m-press${visibility === "PUBLIC" ? " is-active" : ""}`}
             onClick={() => setVisibility("PUBLIC")}
             type="button"
             aria-label="Set Public"
@@ -278,7 +300,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
             Public
           </button>
           <button
-            className={`nm-pill nm-tap${visibility === "PRIVATE" ? " is-active" : ""}`}
+            className={`nm-pill nm-tap m-press${visibility === "PRIVATE" ? " is-active" : ""}`}
             onClick={() => setVisibility("PRIVATE")}
             type="button"
             aria-label="Set Private"
@@ -289,7 +311,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
             Quiet thoughts, minimal noise.
           </div>
           <div style={{ flex: 1 }} />
-          <button className="nm-icon-btn nm-tap" onClick={onPost} aria-label="Post" type="button" disabled={!text.trim()}>
+          <button className="nm-icon-btn nm-tap m-press" onClick={onPost} aria-label="Post" type="button" disabled={!text.trim()}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M3.5 11.5 21 3.8l-7.7 17.7-2.7-7-7.1-3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
               <path d="M10.6 14.5 21 3.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
@@ -320,7 +342,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
         </div>
       ) : null}
 
-      <div className="nm-stack" style={{ gap: 10 }}>
+      <div className={`nm-stack${!showSkeletons && restStatus === "ok" ? " m-swap" : ""}`} style={{ gap: 10 }}>
         {showSkeletons
           ? Array.from({ length: 7 }).map((_, i) => (
               <div key={`sk_${i}`} className="tg-post">
@@ -339,11 +361,13 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
               const emojis = p.postId ? reactionsRef.current.listEmojis(p.postId) : [];
               const isOpen = p.postId ? openReactions.has(p.postId) : false;
               const expanded = !silentMode || isOpen;
+              const animId = p.postId ?? p.tempId ?? p.key;
+              const animate = motionHydratedRef.current && !motionSeenRef.current.has(animId);
 
               return (
                 <div
                   key={p.key}
-                  className="tg-post"
+                  className={`tg-post${animate ? " m-fade-up" : ""}`}
                   style={{
                     opacity: p.status === "pending" ? 0.72 : 1,
                     borderColor: isMine ? "rgba(42, 171, 238, 0.22)" : undefined
@@ -382,7 +406,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
                     <div className="nm-reactions-row">
                       {silentMode && !isOpen ? (
                         <button
-                          className="nm-pill nm-tap"
+                          className="nm-pill nm-tap m-press"
                           onClick={() =>
                             setOpenReactions((prev) => {
                               const next = new Set(prev);
@@ -397,14 +421,14 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
                         </button>
                       ) : null}
 
-                      <div className={`nm-collapsible${expanded ? " is-open" : ""}`}>
+                      <div className={`m-collapsible${expanded ? " is-open" : ""}`}>
                         <div className="nm-reactions-row" style={{ marginTop: 0 }}>
                           {emojis.map((e) => {
                             const mine = reactionsRef.current.hasMine(p.postId!, e, meId);
                             return (
                               <button
                                 key={e}
-                                className={`nm-emoji-pill nm-tap${mine ? " is-mine" : ""}`}
+                                className={`nm-emoji-pill nm-tap m-press${mine ? " is-mine" : ""}`}
                                 onClick={() => toggleReaction(p.postId!, e)}
                                 aria-label={`react ${e}`}
                                 type="button"
@@ -419,7 +443,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
                               {quickEmojis.map((e) => (
                                 <button
                                   key={`q_${e}`}
-                                  className="nm-emoji-pill nm-tap"
+                                  className="nm-emoji-pill nm-tap m-press"
                                   onClick={() => toggleReaction(p.postId!, e)}
                                   aria-label={`quick react ${e}`}
                                   type="button"
@@ -433,7 +457,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
 
                           {silentMode && isOpen ? (
                             <button
-                              className="nm-pill nm-tap"
+                              className="nm-pill nm-tap m-press"
                               onClick={() =>
                                 setOpenReactions((prev) => {
                                   const next = new Set(prev);

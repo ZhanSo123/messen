@@ -95,6 +95,9 @@ curl -s http://localhost:4001/healthz
 - private posts: user A создаёт PRIVATE пост -> user B не видит его ни через `post:broadcast`, ни через `post:sync`.
 - private posts (author): user A создаёт PRIVATE пост -> user A видит его, пометка `Private` в UI, реакции работают только для автора.
 - private post reactions (privacy): user B пытается поставить реакцию на PRIVATE пост user A -> получает `msg:error { scope:\"feed\", reason:\"forbidden\" }`, и не получает ни `react:broadcast`, ни `react:sync` по этой реакции.
+- motion: отправить сообщение и создать пост -> новые элементы появляются плавно (fade-up), без дерганий списка.
+- motion: раскрыть/скрыть реакции -> плавно (collapsible), без рывков layout.
+- motion: `prefers-reduced-motion: reduce` -> анимации минимальны.
 
 ## Cold Start (REST Read Model)
 
@@ -109,4 +112,4 @@ curl -s http://localhost:4001/healthz
   - Search: `/search` (заглушка)
   - Settings: `/settings` (Silent toggle + Logout)
 
-Note: UI uses `env(safe-area-inset-bottom)` for iOS Safari safe-area, and falls back to a solid translucent style when `backdrop-filter` isn't supported.
+Note: UI uses matte dark surfaces (no `backdrop-filter`/blur) and `env(safe-area-inset-bottom)` for iOS Safari safe-area.

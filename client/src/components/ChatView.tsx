@@ -30,6 +30,8 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
   const [msgs, setMsgs] = useState<UiMsg[]>([]);
   const [restStatus, setRestStatus] = useState<"loading" | "ok" | "forbidden" | "unavailable">("loading");
   const [restRetry, setRestRetry] = useState(0);
+  const motionHydratedRef = useRef(false);
+  const motionSeenRef = useRef<Set<string>>(new Set());
   const reactionsRef = useRef(new ReactionStore());
   const [reactionsRev, setReactionsRev] = useState(0);
   const bumpReactions = () => setReactionsRev((x) => x + 1);
@@ -49,6 +51,8 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
       token,
       autoConnect: false,
       onAck: (ack: MsgAck) => {
+        // Prevent a second "new item" animation when tempId -> msgId swaps keys.
+        motionSeenRef.current.add(ack.msgId);
         setMsgs((prev) => {
           // If broadcast landed before ack, prefer the broadcast row and just drop pending.
           if (prev.some((m) => m.msgId === ack.msgId)) {
@@ -129,6 +133,24 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
       }
     });
   }, [realtimeUrl, token, meId]);
+
+  useEffect(() => {
+    if (restStatus !== "ok") return;
+    motionHydratedRef.current = true;
+    for (const m of msgs) {
+      const id = m.msgId ?? m.tempId ?? m.key;
+      motionSeenRef.current.add(id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restStatus]);
+
+  useEffect(() => {
+    if (!motionHydratedRef.current) return;
+    for (const m of msgs) {
+      const id = m.msgId ?? m.tempId ?? m.key;
+      motionSeenRef.current.add(id);
+    }
+  }, [msgs]);
 
   useEffect(() => {
     saveSettings(meId, settings);
@@ -287,7 +309,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
           <div className="nm-muted" style={{ fontSize: 13 }}>
             Check that the realtime server is running, then retry.
           </div>
-          <button className="nm-btn nm-tap" onClick={() => setRestRetry((x) => x + 1)} style={{ width: "fit-content" }}>
+          <button className="nm-btn nm-tap m-press" onClick={() => setRestRetry((x) => x + 1)} style={{ width: "fit-content" }}>
             Retry
           </button>
         </div>
@@ -317,7 +339,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <button
-          className={`nm-pill nm-tap${settings.silentMode ? " is-active" : ""}`}
+          className={`nm-pill nm-tap m-press${settings.silentMode ? " is-active" : ""}`}
           onClick={() =>
             setSettings((s) => {
               const next = { ...s, silentMode: !s.silentMode };
@@ -332,7 +354,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
         </button>
 
         <button
-          className={`nm-pill nm-tap${settings.focusChats.includes(chatId) ? " is-active" : ""}`}
+          className={`nm-pill nm-tap m-press${settings.focusChats.includes(chatId) ? " is-active" : ""}`}
           onClick={() => setSettings((s) => toggleChatInFocus(s, chatId))}
           aria-label="Toggle Focus Pin"
           type="button"
@@ -345,7 +367,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
         </div>
       </div>
 
-      <div className="nm-chat-list">
+      <div className={`nm-chat-list${!showSkeletons && restStatus === "ok" ? " m-swap" : ""}`}>
         {showSkeletons
           ? Array.from({ length: 7 }).map((_, i) => (
               <div key={`sk_${i}`} className="tg-msg-row">
@@ -368,13 +390,15 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
               const expanded = !settings.silentMode || isOpen;
               const ts = m.status === "sent" ? (m.serverTs ?? m.clientTs) : m.clientTs;
               const time = fmtTime(ts);
+              const animId = m.msgId ?? m.tempId ?? m.key;
+              const animate = motionHydratedRef.current && !motionSeenRef.current.has(animId);
 
               return (
                 <div key={m.key} className={`tg-msg-row${isMine ? " is-mine" : ""}`}>
                   <div
                     className={`nm-msg${isMine ? " is-mine" : ""}${m.status === "pending" ? " is-pending" : ""}${
                       m.status === "failed" ? " is-failed" : ""
-                    }`}
+                    }${animate ? " m-fade-up" : ""}`}
                   >
                   <div className="nm-msg-meta">
                     <div className="nm-msg-from">{isMine ? "You" : m.from}</div>
@@ -397,7 +421,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
                     <div className="nm-reactions-row">
                       {settings.silentMode && !isOpen ? (
                         <button
-                          className="nm-pill nm-tap"
+                          className="nm-pill nm-tap m-press"
                           onClick={() =>
                             setOpenReactions((prev) => {
                               const next = new Set(prev);
@@ -412,14 +436,14 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
                         </button>
                       ) : null}
 
-                      <div className={`nm-collapsible${expanded ? " is-open" : ""}`}>
+                      <div className={`m-collapsible${expanded ? " is-open" : ""}`}>
                         <div className="nm-reactions-row" style={{ marginTop: 0 }}>
                           {emojis.map((e) => {
                             const mine = reactionsRef.current.hasMine(m.msgId!, e, meId);
                             return (
                               <button
                                 key={e}
-                                className={`nm-emoji-pill nm-tap${mine ? " is-mine" : ""}`}
+                                className={`nm-emoji-pill nm-tap m-press${mine ? " is-mine" : ""}`}
                                 onClick={() => toggleReaction(m.msgId!, e)}
                                 aria-label={`react ${e}`}
                                 type="button"
@@ -434,7 +458,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
                               {quickEmojis.map((e) => (
                                 <button
                                   key={`q_${e}`}
-                                  className="nm-emoji-pill nm-tap"
+                                  className="nm-emoji-pill nm-tap m-press"
                                   onClick={() => toggleReaction(m.msgId!, e)}
                                   aria-label={`quick react ${e}`}
                                   type="button"
@@ -448,7 +472,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
 
                           {settings.silentMode && isOpen ? (
                             <button
-                              className="nm-pill nm-tap"
+                              className="nm-pill nm-tap m-press"
                               onClick={() =>
                                 setOpenReactions((prev) => {
                                   const next = new Set(prev);
@@ -486,7 +510,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
             aria-label="Message"
           />
           <button
-            className="nm-icon-btn nm-tap"
+            className="nm-icon-btn nm-tap m-press"
             onClick={onSend}
             disabled={!text.trim()}
             aria-label="Send"

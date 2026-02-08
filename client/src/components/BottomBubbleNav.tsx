@@ -84,7 +84,7 @@ export function BottomBubbleNav() {
           return (
             <button
               key={it.key}
-              className={`nm-bubble-btn${active ? " is-active" : ""}`}
+              className={`nm-bubble-btn m-press m-hover${active ? " is-active" : ""}`}
               onClick={() => router.push(it.href)}
               aria-label={it.label}
               aria-current={active ? "page" : undefined}
@@ -98,4 +98,3 @@ export function BottomBubbleNav() {
     </div>
   );
 }
-

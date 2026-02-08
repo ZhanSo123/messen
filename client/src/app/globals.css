@@ -19,6 +19,14 @@
 
   --q-danger: #ff6b6b;
 
+  /* Motion tokens */
+  --m-fast: 140ms;
+  --m-med: 200ms;
+  --m-slow: 320ms;
+  --m-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --m-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --m-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+
   /* Existing layout constants */
   --nm-nav-height: 64px;
   --nm-nav-offset: 12px;
@@ -29,6 +37,22 @@
 
 * {
   box-sizing: border-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --m-fast: 1ms;
+    --m-med: 1ms;
+    --m-slow: 1ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 html,
@@ -106,10 +130,11 @@ a:hover {
   cursor: pointer;
   color: rgba(246, 242, 235, 0.68);
   transition:
-    transform 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    transform var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease),
+    border-color var(--m-fast) var(--m-ease),
+    color var(--m-fast) var(--m-ease);
+  will-change: transform;
 }
 
 .nm-bubble-btn.is-active {
@@ -143,10 +168,10 @@ a:hover {
   color: var(--q-text);
   cursor: pointer;
   transition:
-    transform 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    opacity 160ms ease;
+    transform var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease),
+    border-color var(--m-fast) var(--m-ease),
+    opacity var(--m-fast) var(--m-ease);
 }
 
 .nm-btn:focus-visible {
@@ -163,10 +188,10 @@ a:hover {
   color: var(--q-text);
   cursor: pointer;
   transition:
-    transform 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    opacity 160ms ease;
+    transform var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease),
+    border-color var(--m-fast) var(--m-ease),
+    opacity var(--m-fast) var(--m-ease);
 }
 
 .nm-pill.is-active {
@@ -189,10 +214,10 @@ a:hover {
   color: var(--q-text);
   outline: none;
   transition:
-    transform 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    opacity 160ms ease;
+    transform var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease),
+    border-color var(--m-fast) var(--m-ease),
+    opacity var(--m-fast) var(--m-ease);
 }
 
 .nm-input::placeholder {
@@ -211,7 +236,7 @@ a:hover {
 
 /* Micro-interactions: tactile but quiet */
 .nm-tap {
-  transition: transform 160ms ease, opacity 160ms ease;
+  transition: transform var(--m-fast) var(--m-ease), opacity var(--m-fast) var(--m-ease);
   will-change: transform;
 }
 
@@ -222,6 +247,78 @@ a:hover {
 
 .nm-fadeIn {
   /* intentionally empty */
+}
+
+/* Motion utilities (apply selectively) */
+@keyframes mFadeUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes mFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.m-fade-up {
+  animation: mFadeUp var(--m-med) var(--m-ease-out) both;
+}
+
+.m-fade-in {
+  animation: mFadeIn var(--m-med) var(--m-ease-out) both;
+}
+
+.m-swap {
+  animation: mFadeIn var(--m-med) var(--m-ease-out) both;
+}
+
+.m-press {
+  transition: transform var(--m-fast) var(--m-ease), opacity var(--m-fast) var(--m-ease);
+  will-change: transform;
+}
+
+.m-press:active {
+  transform: scale(0.985);
+}
+
+@media (hover: hover) {
+  .m-hover {
+    transition: transform var(--m-fast) var(--m-ease), opacity var(--m-fast) var(--m-ease);
+    will-change: transform;
+  }
+  .m-hover:hover {
+    transform: translate3d(0, -1px, 0);
+    opacity: 0.98;
+  }
+}
+
+.m-collapsible {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translate3d(0, -4px, 0);
+  pointer-events: none;
+  transition:
+    max-height var(--m-med) var(--m-ease-out),
+    opacity var(--m-med) var(--m-ease-out),
+    transform var(--m-med) var(--m-ease-out);
+}
+
+.m-collapsible.is-open {
+  max-height: 180px;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
 }
 
 /* Chat layout */
@@ -338,9 +435,9 @@ a:hover {
   transform: translateY(-2px);
   pointer-events: none;
   transition:
-    max-height 150ms ease,
-    opacity 150ms ease,
-    transform 150ms ease;
+    max-height var(--m-med) var(--m-ease-out),
+    opacity var(--m-med) var(--m-ease-out),
+    transform var(--m-med) var(--m-ease-out);
 }
 
 .nm-collapsible.is-open {
@@ -376,6 +473,16 @@ a:hover {
   border-radius: 16px;
   background: var(--q-surface2);
   border: 1px solid var(--q-divider);
+  transition:
+    transform var(--m-fast) var(--m-ease-out),
+    border-color var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease);
+  will-change: transform;
+}
+
+.nm-composer:focus-within {
+  transform: translate3d(0, -1px, 0);
+  border-color: rgba(var(--q-accent-rgb), 0.18);
 }
 
 .nm-composer-input {
@@ -398,10 +505,10 @@ a:hover {
   align-items: center;
   justify-content: center;
   transition:
-    transform 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease,
-    opacity 160ms ease;
+    transform var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease),
+    border-color var(--m-fast) var(--m-ease),
+    opacity var(--m-fast) var(--m-ease);
 }
 
 .nm-icon-btn:disabled {
@@ -427,4 +534,17 @@ a:hover {
 
 .tg-post + .tg-post {
   margin-top: 8px;
+}
+
+.q-compose {
+  transition:
+    transform var(--m-fast) var(--m-ease-out),
+    border-color var(--m-fast) var(--m-ease),
+    background var(--m-fast) var(--m-ease);
+  will-change: transform;
+}
+
+.q-compose:focus-within {
+  transform: translate3d(0, -1px, 0);
+  border-color: rgba(var(--q-accent-rgb), 0.16);
 }
