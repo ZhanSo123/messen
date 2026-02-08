@@ -233,7 +233,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
 
   if (restStatus === "forbidden") {
     return (
-      <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+      <div style={{ background: "var(--q-surface2)", border: "1px solid var(--q-divider)", borderRadius: 12, padding: 12 }}>
         <div style={{ fontWeight: 750, fontSize: 16 }}>No access</div>
         <div className="nm-muted" style={{ fontSize: 13 }}>
           You are not allowed to view the feed.
@@ -244,7 +244,7 @@ export function PostFeed(props: { token: string; meId: string; realtimeUrl: stri
 
   if (restStatus === "unavailable") {
     return (
-      <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+      <div style={{ background: "var(--q-surface2)", border: "1px solid var(--q-divider)", borderRadius: 12, padding: 12 }}>
         <div style={{ fontWeight: 750, fontSize: 16 }}>Server unavailable</div>
         <div className="nm-muted" style={{ fontSize: 13 }}>
           Check that the realtime server is running, then retry.

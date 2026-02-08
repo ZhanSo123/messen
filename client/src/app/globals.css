@@ -1,15 +1,23 @@
 :root {
   color-scheme: dark;
 
-  /* Telegram-like (dark) */
-  --tg-bg: #0e1621;
-  --tg-surface: #17212b;
-  --tg-bubble-in: #182533;
-  --tg-bubble-out: #2b5278;
-  --tg-text: rgba(255, 255, 255, 0.92);
-  --tg-muted: rgba(255, 255, 255, 0.58);
-  --tg-accent: #2aabee;
-  --tg-divider: rgba(255, 255, 255, 0.08);
+  /* Quiet Telegram 2026 (warm dark, matte, no glass/blur) */
+  --q-bg: #0b0a08;
+  --q-surface: #141210;
+  --q-surface2: #191613;
+
+  --q-bubble-in: #151311;
+  --q-bubble-out: #1a1815;
+
+  --q-text: rgba(246, 242, 235, 0.92);
+  --q-muted: rgba(246, 242, 235, 0.58);
+  --q-divider: rgba(255, 255, 255, 0.07);
+
+  /* Calm accent (not bright blue) */
+  --q-accent-rgb: 176 156 122;
+  --q-accent: rgb(var(--q-accent-rgb));
+
+  --q-danger: #ff6b6b;
 
   /* Existing layout constants */
   --nm-nav-height: 64px;
@@ -34,12 +42,15 @@ body {
   font-size: 15px;
   line-height: 1.35;
   letter-spacing: -0.01em;
-  background: var(--tg-bg);
-  color: var(--tg-text);
+  background:
+    radial-gradient(900px 640px at 12% 0%, rgba(176, 156, 122, 0.08) 0%, rgba(176, 156, 122, 0) 58%),
+    radial-gradient(820px 640px at 88% 14%, rgba(120, 150, 130, 0.05) 0%, rgba(120, 150, 130, 0) 58%),
+    linear-gradient(180deg, #0b0a08 0%, #080706 100%);
+  color: var(--q-text);
 }
 
 a {
-  color: var(--tg-accent);
+  color: rgba(var(--q-accent-rgb), 0.92);
   text-decoration: none;
 }
 
@@ -78,8 +89,9 @@ a:hover {
   gap: 10px;
   padding: 10px 12px;
   border-radius: 9999px;
-  background: rgba(23, 33, 43, 0.98);
-  border: 1px solid var(--tg-divider);
+  background: rgba(20, 18, 16, 0.98);
+  border: 1px solid var(--q-divider);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.55);
 }
 
 .nm-bubble-btn {
@@ -92,23 +104,28 @@ a:hover {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(246, 242, 235, 0.68);
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .nm-bubble-btn.is-active {
-  color: rgba(255, 255, 255, 0.92);
-  border-color: var(--tg-divider);
-  background: rgba(255, 255, 255, 0.04);
+  color: rgba(246, 242, 235, 0.92);
+  border-color: rgba(var(--q-accent-rgb), 0.22);
+  background: rgba(var(--q-accent-rgb), 0.08);
 }
 
 .nm-bubble-btn:focus-visible {
-  outline: 2px solid rgba(42, 171, 238, 0.5);
+  outline: 2px solid rgba(var(--q-accent-rgb), 0.55);
   outline-offset: 2px;
 }
 
 /* Simple primitives */
 .nm-muted {
-  color: var(--tg-muted);
+  color: var(--q-muted);
 }
 
 .nm-stack {
@@ -121,14 +138,19 @@ a:hover {
   min-height: 44px;
   padding: 10px 14px;
   border-radius: 10px;
-  border: 1px solid var(--tg-divider);
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--tg-text);
+  border: 1px solid var(--q-divider);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--q-text);
   cursor: pointer;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
 }
 
 .nm-btn:focus-visible {
-  outline: 2px solid rgba(42, 171, 238, 0.5);
+  outline: 2px solid rgba(var(--q-accent-rgb), 0.55);
   outline-offset: 2px;
 }
 
@@ -136,19 +158,24 @@ a:hover {
   min-height: 44px;
   padding: 8px 12px;
   border-radius: 9999px;
-  border: 1px solid var(--tg-divider);
-  background: transparent;
-  color: var(--tg-text);
+  border: 1px solid var(--q-divider);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--q-text);
   cursor: pointer;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
 }
 
 .nm-pill.is-active {
-  border-color: rgba(42, 171, 238, 0.35);
-  background: rgba(42, 171, 238, 0.12);
+  border-color: rgba(var(--q-accent-rgb), 0.28);
+  background: rgba(var(--q-accent-rgb), 0.1);
 }
 
 .nm-pill:focus-visible {
-  outline: 2px solid rgba(42, 171, 238, 0.5);
+  outline: 2px solid rgba(var(--q-accent-rgb), 0.55);
   outline-offset: 2px;
 }
 
@@ -157,18 +184,23 @@ a:hover {
   min-height: 44px;
   padding: 12px 12px;
   border-radius: 12px;
-  border: 1px solid var(--tg-divider);
+  border: 1px solid var(--q-divider);
   background: rgba(255, 255, 255, 0.03);
-  color: var(--tg-text);
+  color: var(--q-text);
   outline: none;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
 }
 
 .nm-input::placeholder {
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(246, 242, 235, 0.36);
 }
 
 .nm-input:focus-visible {
-  border-color: rgba(42, 171, 238, 0.45);
+  border-color: rgba(var(--q-accent-rgb), 0.3);
 }
 
 /* Telegram-like skeletons: simple grey bars, no shimmer */
@@ -177,9 +209,15 @@ a:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* Disable previous animation hooks (research stage: no fancy motion) */
+/* Micro-interactions: tactile but quiet */
+.nm-tap {
+  transition: transform 160ms ease, opacity 160ms ease;
+  will-change: transform;
+}
+
 .nm-tap:active {
-  opacity: 0.85;
+  transform: scale(0.98);
+  opacity: 0.92;
 }
 
 .nm-fadeIn {
@@ -209,16 +247,16 @@ a:hover {
 
 .nm-msg {
   max-width: min(520px, 78%);
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 18px;
-  background: var(--tg-bubble-in);
-  color: var(--tg-text);
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  background: var(--q-bubble-in);
+  color: var(--q-text);
+  border: 1px solid var(--q-divider);
 }
 
 .nm-msg.is-mine {
-  background: var(--tg-bubble-out);
-  border-color: rgba(0, 0, 0, 0.12);
+  background: var(--q-bubble-out);
+  border-color: rgba(var(--q-accent-rgb), 0.12);
 }
 
 /* Telegram-ish corner asymmetry */
@@ -226,14 +264,14 @@ a:hover {
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
   border-bottom-left-radius: 18px;
-  border-bottom-right-radius: 6px;
+  border-bottom-right-radius: 8px;
 }
 
 .nm-msg:not(.is-mine) {
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
   border-bottom-right-radius: 18px;
-  border-bottom-left-radius: 6px;
+  border-bottom-left-radius: 8px;
 }
 
 .nm-msg.is-pending {
@@ -241,7 +279,7 @@ a:hover {
 }
 
 .nm-msg.is-failed {
-  border-color: rgba(255, 120, 120, 0.4);
+  border-color: rgba(255, 107, 107, 0.45);
 }
 
 .nm-msg-meta {
@@ -251,7 +289,7 @@ a:hover {
   gap: 10px;
   margin-bottom: 4px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(246, 242, 235, 0.62);
 }
 
 .nm-msg-from {
@@ -279,26 +317,37 @@ a:hover {
   min-height: 28px;
   padding: 4px 8px;
   border-radius: 9999px;
-  border: 1px solid var(--tg-divider);
-  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--q-divider);
+  background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
   font-size: 13px;
   line-height: 18px;
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(246, 242, 235, 0.9);
 }
 
 .nm-emoji-pill.is-mine {
-  border-color: rgba(42, 171, 238, 0.45);
-  background: rgba(42, 171, 238, 0.12);
+  border-color: rgba(var(--q-accent-rgb), 0.32);
+  background: rgba(var(--q-accent-rgb), 0.12);
 }
 
-/* No animations for collapsible: closed => display none */
+/* Quiet collapsible (150ms): avoids hard jumps */
 .nm-collapsible {
-  display: none;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-2px);
+  pointer-events: none;
+  transition:
+    max-height 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
 }
 
 .nm-collapsible.is-open {
-  display: block;
+  max-height: 220px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 /* Composer: Telegram-like bottom bar (no blur/glow) */
@@ -324,39 +373,47 @@ a:hover {
   gap: 10px;
   align-items: center;
   padding: 8px 10px;
-  border-radius: 14px;
-  background: var(--tg-surface);
-  border: 1px solid var(--tg-divider);
+  border-radius: 16px;
+  background: var(--q-surface2);
+  border: 1px solid var(--q-divider);
 }
 
 .nm-composer-input {
   flex: 1;
   min-height: 44px;
   border-radius: 18px;
-  border-color: transparent;
-  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--q-divider);
+  background: var(--q-surface);
 }
 
 .nm-icon-btn {
   width: 44px;
   height: 44px;
-  border-radius: 9999px;
-  border: none;
-  background: var(--tg-accent);
-  color: rgba(255, 255, 255, 0.95);
+  border-radius: 14px;
+  border: 1px solid rgba(var(--q-accent-rgb), 0.22);
+  background: rgba(var(--q-accent-rgb), 0.1);
+  color: rgba(246, 242, 235, 0.92);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition:
+    transform 160ms ease,
+    background 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease;
 }
 
 .nm-icon-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+  border-color: var(--q-divider);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(246, 242, 235, 0.7);
 }
 
 .nm-icon-btn:focus-visible {
-  outline: 2px solid rgba(42, 171, 238, 0.65);
+  outline: 2px solid rgba(var(--q-accent-rgb), 0.55);
   outline-offset: 2px;
 }
 
@@ -364,11 +421,10 @@ a:hover {
 .tg-post {
   padding: 10px 12px;
   border-radius: 12px;
-  background: var(--tg-surface);
-  border: 1px solid var(--tg-divider);
+  background: var(--q-surface);
+  border: 1px solid var(--q-divider);
 }
 
 .tg-post + .tg-post {
   margin-top: 8px;
 }
-

@@ -269,7 +269,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
   if (restStatus === "forbidden") {
     return (
       <div className="nm-content nm-fadeIn">
-        <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+        <div style={{ background: "var(--q-surface2)", border: "1px solid var(--q-divider)", borderRadius: 12, padding: 12 }}>
           <div style={{ fontWeight: 750, fontSize: 16 }}>No access</div>
           <div className="nm-muted" style={{ fontSize: 13 }}>
             You are not a member of this chat.
@@ -282,7 +282,7 @@ export function ChatView(props: { chatId: string; token: string; meId: string; r
   if (restStatus === "unavailable") {
     return (
       <div className="nm-content nm-fadeIn">
-        <div style={{ background: "var(--tg-surface)", border: "1px solid var(--tg-divider)", borderRadius: 12, padding: 12 }}>
+        <div style={{ background: "var(--q-surface2)", border: "1px solid var(--q-divider)", borderRadius: 12, padding: 12 }}>
           <div style={{ fontWeight: 750, fontSize: 16 }}>Server unavailable</div>
           <div className="nm-muted" style={{ fontSize: 13 }}>
             Check that the realtime server is running, then retry.
